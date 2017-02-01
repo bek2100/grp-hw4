@@ -80,9 +80,10 @@ private:
 	// our functions
 	void DrawLine(double *z_arr, COLORREF *arr, vec4 &p1, vec4 &p2, COLORREF p1_color, vec4* p1_normal = NULL, COLORREF p2_color = NULL, vec4* p2_normal = NULL, std::unordered_map<int, std::vector<x_z_c_n_point>>* x_y = NULL);
 	void DrawBoundBox(double *z_arr, COLORREF *arr, model &m, mat4 cur_transform, COLORREF color);
-	void ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 cur_transform, COLORREF color);
+	void ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 cur_transform, mat4 inv_cur_transfrom, COLORREF color);
 	void SetBackgound();
-	void RenderLightScene();
+	void RenderLightScene(LightParams light);
+	bool VisibleToLight(LightParams light);
 	void set_light_pos(mat4 view_space_trans);
 	double LinePointDepth(vec4 &p1, vec4 &p2, int x, int y);
 
@@ -125,10 +126,18 @@ protected:
 	virtual LRESULT OnMouseMovement(WPARAM wparam, LPARAM lparam);
 
 	mat4 m_tarnsform;
+	mat4 m_camera_transpose;
 	mat4 m_screen_space_trans;
 	mat4 m_prespective_trans;
 	mat4 m_screen_space_scale;
 	mat4 m_screen_space_translate;
+
+	mat4 m_inv_camera_transpose;
+	mat4 m_inv_screen_space_trans;
+	mat4 m_inv_prespective_trans;
+	mat4 m_inv_screen_space_scale;
+	mat4 m_inv_screen_space_translate;
+
 	vec4 m_camera_pos;
 	vec4 m_camera_at;
 	vec4 m_camera_up;

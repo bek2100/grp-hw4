@@ -57,6 +57,13 @@ public:
     double dirY;
     double dirZ;
     
+	double* z_array_xdir;
+	double* z_array_neg_xdir;
+	double* z_array_ydir;
+	double* z_array_neg_ydir;
+	double* z_array_zdir;
+	double* z_array_neg_zdir;
+
 	vec4 rel_dir;
 
     LightParams():

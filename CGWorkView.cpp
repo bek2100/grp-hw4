@@ -52,6 +52,7 @@ extern IPFreeformConvStateStruct CGSkelFFCState;
 #define GET_G(x) (((x)&0x00ff0000)>>16)
 #define GET_B(x) (((x)&0x0000ff00)>>8)
 #define GET_A(x) ((x)&0x000000ff)
+#define RENDER_LIGHT 10
 
 /////////////////////////////////////////////////////////////////////////////
 // CCGWorkView
@@ -175,6 +176,21 @@ CCGWorkView::CCGWorkView()
 	CGSkelFFCState.FineNess = 2;
 
 	m_bIsPerspective = false;
+
+	m_camera_transpose[0][0] = 1;
+	m_camera_transpose[1][1] = 1;
+	m_camera_transpose[2][2] = 1;
+	m_camera_transpose[3][2] = 4;
+
+	m_camera_transpose[3][3] = 1;
+
+	m_inv_camera_transpose[0][0] = 1;
+	m_inv_camera_transpose[1][1] = 1;
+	m_inv_camera_transpose[2][2] = 1;
+	m_inv_camera_transpose[3][2] = -4;
+
+	m_inv_camera_transpose[3][3] = 1;
+
 	m_tarnsform[0][0] = 1;
 	m_tarnsform[1][1] = 1;
 	m_tarnsform[2][2] = 1;
@@ -222,7 +238,13 @@ CCGWorkView::CCGWorkView()
 	m_nMaterialCosineFactor = 32;
 
 	for (int l = LIGHT_ID_1; l < MAX_LIGHT; l++){
-		m_lights[LIGHT_ID_1].enabled = false;
+		m_lights[l].enabled = false;
+		m_lights[l].z_array_xdir = NULL;
+		m_lights[l].z_array_neg_xdir = NULL;
+		m_lights[l].z_array_ydir = NULL;
+		m_lights[l].z_array_neg_ydir = NULL;
+		m_lights[l].z_array_zdir = NULL;
+		m_lights[l].z_array_neg_zdir = NULL;
 	}
 
 	//init the first light to be enabled
@@ -364,8 +386,25 @@ void CCGWorkView::OnDraw(CDC* pDC)
 	ASSERT_VALID(pDoc);
 
 	delete m_screen;
+	delete z_buffer;
 	m_screen = (COLORREF*)calloc(m_WindowWidth * m_WindowHeight, sizeof(COLORREF));
 	z_buffer = (double*)calloc(m_WindowWidth * m_WindowHeight, sizeof(double));
+
+	// TODO give z buffers to all light sources
+
+	delete m_lights[0].z_array_xdir;
+	delete m_lights[0].z_array_neg_xdir;
+	delete m_lights[0].z_array_ydir;
+	delete m_lights[0].z_array_neg_ydir;
+	delete m_lights[0].z_array_zdir;
+	delete m_lights[0].z_array_neg_zdir;
+
+	m_lights[0].z_array_xdir = (double*)calloc(m_WindowWidth * m_WindowHeight, sizeof(double));
+	m_lights[0].z_array_neg_xdir = (double*)calloc(m_WindowWidth * m_WindowHeight, sizeof(double));
+	m_lights[0].z_array_ydir = (double*)calloc(m_WindowWidth * m_WindowHeight, sizeof(double));
+	m_lights[0].z_array_neg_ydir = (double*)calloc(m_WindowWidth * m_WindowHeight, sizeof(double));
+	m_lights[0].z_array_zdir = (double*)calloc(m_WindowWidth * m_WindowHeight, sizeof(double));
+	m_lights[0].z_array_neg_zdir = (double*)calloc(m_WindowWidth * m_WindowHeight, sizeof(double));
 
 	mat4 screen_space_scale;
 	mat4 screen_space_translate;
@@ -378,6 +417,14 @@ void CCGWorkView::OnDraw(CDC* pDC)
 	screen_space_scale[3][3] = 1;
 
 	m_screen_space_scale = screen_space_scale;
+
+	// inverse screen scalint transformation
+	screen_space_scale[0][0] = 1 / ((double)min_axis*0.6);
+	screen_space_scale[1][1] = 1 / ((double)min_axis*0.6);
+	screen_space_scale[2][2] = 1 / ((double)min_axis*0.6);
+	screen_space_scale[3][3] = 1;
+
+	m_inv_screen_space_scale = screen_space_scale;
 
 	// set the screen translation transformation
 	screen_space_translate[0][0] = 1;
@@ -392,6 +439,18 @@ void CCGWorkView::OnDraw(CDC* pDC)
 
 	m_screen_space_translate = screen_space_translate;
 
+	// inverse screen space translate
+	screen_space_translate[0][0] = 1;
+	screen_space_translate[3][0] = -0.5 * m_WindowWidth;
+
+	screen_space_translate[1][1] = 1;
+	screen_space_translate[3][1] = -0.5 * m_WindowHeight;
+
+	screen_space_translate[2][2] = 1;
+
+	screen_space_translate[3][3] = 1;
+
+	m_inv_screen_space_translate = screen_space_translate;
 
 	// set the screens prespective transformation
 	mat4 reset;
@@ -406,7 +465,14 @@ void CCGWorkView::OnDraw(CDC* pDC)
 	m_prespective_trans[2][3] = 1 / screen_space_d;
 	m_prespective_trans[3][2] = -screen_space_alpha * screen_space_d / (screen_space_d - screen_space_alpha);
 
-	m_screen_space_trans = screen_space_scale * screen_space_translate;
+	// inverse prespective trans
+
+	m_inv_prespective_trans[0][0] = 1;
+	m_inv_prespective_trans[1][1] = 1;
+	m_inv_prespective_trans[2][2] = 0;
+	m_inv_prespective_trans[2][3] = (screen_space_alpha - screen_space_d) / (screen_space_alpha * screen_space_d);
+	m_inv_prespective_trans[3][2] = screen_space_d;
+	m_inv_prespective_trans[3][3] = screen_space_d / screen_space_alpha;
 
 	RenderScene();
 
@@ -455,6 +521,9 @@ LRESULT CCGWorkView::OnMouseMovement(WPARAM wparam, LPARAM lparam){
 		mat4 temp_transform;
 		mat4 temp_transform_xy;
 
+		mat4 temp_inv_transform;
+		mat4 temp_inv_transform_xy;
+
 		// x mouse movement params
 		double diff_x = (xPos - m_mouse_xpos);
 
@@ -474,6 +543,7 @@ LRESULT CCGWorkView::OnMouseMovement(WPARAM wparam, LPARAM lparam){
 
 		if (m_nAction == ID_ACTION_ROTATE){
 			if (m_nAxis == ID_AXIS_X){
+				// trasnfrom
 				temp_transform[0][0] = 1;
 
 				temp_transform[1][1] = cosy;
@@ -484,8 +554,19 @@ LRESULT CCGWorkView::OnMouseMovement(WPARAM wparam, LPARAM lparam){
 
 				temp_transform[3][3] = 1;
 
+				//inv trasnfrom
+				temp_inv_transform[0][0] = 1;
+
+				temp_inv_transform[1][1] = cosy;
+				temp_inv_transform[1][2] = siny;
+
+				temp_inv_transform[2][1] = -siny;
+				temp_inv_transform[2][2] = cosy;
+
+				temp_inv_transform[3][3] = 1;
 			}
 			if (m_nAxis == ID_AXIS_Y){
+				// transform
 				temp_transform[0][0] = cosx;
 				temp_transform[0][2] = -sinx;
 
@@ -495,8 +576,20 @@ LRESULT CCGWorkView::OnMouseMovement(WPARAM wparam, LPARAM lparam){
 				temp_transform[2][2] = cosx;
 
 				temp_transform[3][3] = 1;
+
+				// inv transfrom
+				temp_inv_transform[0][0] = cosx;
+				temp_inv_transform[0][2] = sinx;
+
+				temp_inv_transform[1][1] = 1;
+
+				temp_inv_transform[2][0] = -sinx;
+				temp_inv_transform[2][2] = cosx;
+
+				temp_inv_transform[3][3] = 1;
 			}
 			if (m_nAxis == ID_AXIS_Z){
+				// transform
 				temp_transform[0][0] = cosx;
 				temp_transform[0][1] = -sinx;
 
@@ -506,8 +599,20 @@ LRESULT CCGWorkView::OnMouseMovement(WPARAM wparam, LPARAM lparam){
 				temp_transform[2][2] = 1;
 
 				temp_transform[3][3] = 1;
+
+				//inv transform
+				temp_inv_transform[0][0] = cosx;
+				temp_inv_transform[0][1] = sinx;
+
+				temp_inv_transform[1][0] = -sinx;
+				temp_inv_transform[1][1] = cosx;
+
+				temp_inv_transform[2][2] = 1;
+
+				temp_inv_transform[3][3] = 1;
 			}
 			if (m_nAxis == ID_AXIS_XY){
+				// y transform
 				temp_transform[0][0] = 1;
 
 				temp_transform[1][1] = cosy;
@@ -518,6 +623,18 @@ LRESULT CCGWorkView::OnMouseMovement(WPARAM wparam, LPARAM lparam){
 
 				temp_transform[3][3] = 1;
 
+				// y inv transfrom
+				temp_inv_transform[0][0] = 1;
+
+				temp_inv_transform[1][1] = cosy;
+				temp_inv_transform[1][2] = -siny;
+
+				temp_inv_transform[2][1] = siny;
+				temp_inv_transform[2][2] = cosy;
+
+				temp_inv_transform[3][3] = 1;
+
+				// x transform
 				temp_transform_xy[0][0] = cosx;
 				temp_transform_xy[0][2] = sinx;
 
@@ -528,11 +645,24 @@ LRESULT CCGWorkView::OnMouseMovement(WPARAM wparam, LPARAM lparam){
 
 				temp_transform_xy[3][3] = 1;
 
+				//x invy transform
+				temp_inv_transform_xy[0][0] = cosx;
+				temp_inv_transform_xy[0][2] = -sinx;
+
+				temp_inv_transform_xy[1][1] = 1;
+
+				temp_inv_transform_xy[2][0] = sinx;
+				temp_inv_transform_xy[2][2] = cosx;
+
+				temp_inv_transform_xy[3][3] = 1;
+
 				temp_transform = temp_transform_xy * temp_transform;
+				temp_inv_transform = temp_inv_transform * temp_inv_transform_xy;
 			}
 		}
 		else if (m_nAction == ID_ACTION_TRANSLATE){
 			if (m_nAxis == ID_AXIS_X){
+				// x translate
 				temp_transform[0][0] = 1;
 				temp_transform[3][0] = m_mouse_sensetivity * (double)diff_x / m_WindowWidth;
 
@@ -541,8 +671,19 @@ LRESULT CCGWorkView::OnMouseMovement(WPARAM wparam, LPARAM lparam){
 				temp_transform[2][2] = 1;
 
 				temp_transform[3][3] = 1;
+
+				// x inv translate
+				temp_inv_transform[0][0] = 1;
+				temp_inv_transform[3][0] = -m_mouse_sensetivity * (double)diff_x / m_WindowWidth;
+
+				temp_inv_transform[1][1] = 1;
+
+				temp_inv_transform[2][2] = 1;
+
+				temp_inv_transform[3][3] = 1;
 			}
 			if (m_nAxis == ID_AXIS_Y){
+				// y translate
 				temp_transform[0][0] = 1;
 
 				temp_transform[1][1] = 1;
@@ -551,8 +692,19 @@ LRESULT CCGWorkView::OnMouseMovement(WPARAM wparam, LPARAM lparam){
 				temp_transform[2][2] = 1;
 
 				temp_transform[3][3] = 1;
+
+				// y inv translate
+				temp_inv_transform[0][0] = 1;
+
+				temp_inv_transform[1][1] = 1;
+				temp_inv_transform[3][1] = -m_mouse_sensetivity * (double)diff_y / m_WindowHeight;
+
+				temp_inv_transform[2][2] = 1;
+
+				temp_inv_transform[3][3] = 1;
 			}
 			if (m_nAxis == ID_AXIS_Z){
+				// z translate
 				temp_transform[0][0] = 1;
 
 				temp_transform[1][1] = 1;
@@ -561,8 +713,19 @@ LRESULT CCGWorkView::OnMouseMovement(WPARAM wparam, LPARAM lparam){
 				temp_transform[3][2] = m_mouse_sensetivity * (double)diff_x / m_WindowWidth;
 
 				temp_transform[3][3] = 1;
+
+				// z inv translate
+				temp_inv_transform[0][0] = 1;
+
+				temp_inv_transform[1][1] = 1;
+
+				temp_inv_transform[2][2] = 1;
+				temp_inv_transform[3][2] = -m_mouse_sensetivity * (double)diff_x / m_WindowWidth;
+
+				temp_inv_transform[3][3] = 1;
 			}
 			if (m_nAxis == ID_AXIS_XY){
+				// xy translate
 				temp_transform[0][0] = 1;
 				temp_transform[3][0] = m_mouse_sensetivity * (double)diff_x / m_WindowWidth;
 
@@ -572,63 +735,92 @@ LRESULT CCGWorkView::OnMouseMovement(WPARAM wparam, LPARAM lparam){
 				temp_transform[2][2] = 1;
 
 				temp_transform[3][3] = 1;
+
+				// xy inv translate
+				temp_inv_transform[0][0] = 1;
+				temp_inv_transform[3][0] = -m_mouse_sensetivity * (double)diff_x / m_WindowWidth;
+
+				temp_inv_transform[1][1] = 1;
+				temp_inv_transform[3][1] = -m_mouse_sensetivity * (double)diff_y / m_WindowHeight;
+
+				temp_inv_transform[2][2] = 1;
+
+				temp_inv_transform[3][3] = 1;
 			}
 		}
 		else if (m_nAction == ID_ACTION_SCALE){
 			if (m_nAxis == ID_AXIS_X){
+				// x scale
 				temp_transform[0][0] = 1 + m_mouse_sensetivity * (double)diff_x / m_WindowWidth;
-
 				temp_transform[1][1] = 1;
-
 				temp_transform[2][2] = 1;
-
 				temp_transform[3][3] = 1;
+
+				// x inv scale
+				temp_inv_transform[0][0] = 1 / (1 + m_mouse_sensetivity * (double)diff_x / m_WindowWidth);
+				temp_inv_transform[1][1] = 1;
+				temp_inv_transform[2][2] = 1;
+				temp_inv_transform[3][3] = 1;
 			}
 			if (m_nAxis == ID_AXIS_Y){
+				// y scale
 				temp_transform[0][0] = 1;
-
 				temp_transform[1][1] = 1 + m_mouse_sensetivity * (double)diff_y / m_WindowHeight;
-
 				temp_transform[2][2] = 1;
-
 				temp_transform[3][3] = 1;
+
+				// y inv scale
+				temp_inv_transform[0][0] = 1;
+				temp_inv_transform[1][1] = 1 / (1 + m_mouse_sensetivity * (double)diff_y / m_WindowHeight);
+				temp_inv_transform[2][2] = 1;
+				temp_inv_transform[3][3] = 1;
 			}
 			if (m_nAxis == ID_AXIS_Z){
+				// z scale
 				temp_transform[0][0] = 1;
-
 				temp_transform[1][1] = 1;
-
 				temp_transform[2][2] = 1 + m_mouse_sensetivity * (double)diff_x / m_WindowWidth;
-
 				temp_transform[3][3] = 1;
+
+				// z inv scale
+				temp_inv_transform[0][0] = 1;
+				temp_inv_transform[1][1] = 1;
+				temp_inv_transform[2][2] = 1 / (1 + m_mouse_sensetivity * (double)diff_x / m_WindowWidth);
+				temp_inv_transform[3][3] = 1;
 			}
 			if (m_nAxis == ID_AXIS_XY){
+				// xy scale
 				temp_transform[0][0] = 1 + m_mouse_sensetivity * (double)diff_x / m_WindowWidth;
-
 				temp_transform[1][1] = 1 + m_mouse_sensetivity * (double)diff_y / m_WindowHeight;
-
 				temp_transform[2][2] = 1;
-
 				temp_transform[3][3] = 1;
+
+				// xy inv scale
+				temp_inv_transform[0][0] = 1 / (1 + m_mouse_sensetivity * (double)diff_x / m_WindowWidth);
+				temp_inv_transform[1][1] = 1 / (1 + m_mouse_sensetivity * (double)diff_y / m_WindowHeight);
+				temp_inv_transform[2][2] = 1;
+				temp_inv_transform[3][3] = 1;
 			}
 		}
 		else {
 			temp_transform[0][0] = 1;
-
 			temp_transform[1][1] = 1;
-
 			temp_transform[2][2] = 1;
-
 			temp_transform[3][3] = 1;
+
+			temp_inv_transform = temp_transform;
 		}
-		m_tarnsform = temp_transform;
 
 		for (unsigned int m = 0; m < models.size(); m++){
 			if (models[m].active_model){
-				if (m_object_space_trans)
-					models[m].obj_coord_trans = m_tarnsform * models[m].obj_coord_trans;
-				else
-					models[m].camera_trans = models[m].camera_trans * m_tarnsform;
+				if (m_object_space_trans) {
+					models[m].obj_coord_trans = temp_transform * models[m].obj_coord_trans;
+					models[m].inv_obj_coord_trans = models[m].inv_obj_coord_trans * temp_inv_transform;
+				}
+				else {
+					models[m].camera_trans = models[m].camera_trans * temp_transform;
+					models[m].inv_camera_trans = temp_inv_transform * models[m].inv_camera_trans;
+				}
 			}
 		}
 
@@ -824,6 +1016,8 @@ void CCGWorkView::DrawLine(double* z_arr, COLORREF *arr, vec4 &p1, vec4 &p2, COL
 		(m_nView == ID_VIEW_ORTHOGRAPHIC)))
 		return;
 	int xy = (x_y != NULL);
+	bool draw = (arr != NULL);
+
 	// algorithm vars
 	int x1, x2, y1, y2, dx, dy, d;
 	int north_er, north_west_er, west_er, south_west_er, south_er, south_east_er, east_er, north_east_er;
@@ -897,7 +1091,9 @@ void CCGWorkView::DrawLine(double* z_arr, COLORREF *arr, vec4 &p1, vec4 &p2, COL
 	}
 	else if (IN_RANGE(x, y)){
 		if (z < z_arr[SCREEN_SPACE(x, y)]){
-			arr[SCREEN_SPACE(x, y)] = c;
+			if (draw)
+				arr[SCREEN_SPACE(x, y)] = c;
+
 			z_arr[SCREEN_SPACE(x, y)] = z;
 			if (m_render_target == ID_RENDER_TOFILE){
 				m_pngHandle.SetValue(x, y, c);
@@ -929,7 +1125,9 @@ void CCGWorkView::DrawLine(double* z_arr, COLORREF *arr, vec4 &p1, vec4 &p2, COL
 			}
 			else if (IN_RANGE(x, y)){
 				if (z < z_arr[SCREEN_SPACE(x, y)]){
-					arr[SCREEN_SPACE(x, y)] = c;
+					if (draw)
+						arr[SCREEN_SPACE(x, y)] = c;
+
 					z_arr[SCREEN_SPACE(x, y)] = z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
@@ -972,7 +1170,8 @@ void CCGWorkView::DrawLine(double* z_arr, COLORREF *arr, vec4 &p1, vec4 &p2, COL
 			}
 			else if (IN_RANGE(x, y)){
 				if (z < z_arr[SCREEN_SPACE(x, y)]){
-					arr[SCREEN_SPACE(x, y)] = c;
+					if (draw)
+						arr[SCREEN_SPACE(x, y)] = c;
 					z_arr[SCREEN_SPACE(x, y)] = z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
@@ -1013,7 +1212,8 @@ void CCGWorkView::DrawLine(double* z_arr, COLORREF *arr, vec4 &p1, vec4 &p2, COL
 			}
 			else if (IN_RANGE(x, y)){
 				if (z < z_arr[SCREEN_SPACE(x, y)]){
-					arr[SCREEN_SPACE(x, y)] = c;
+					if (draw)
+						arr[SCREEN_SPACE(x, y)] = c;
 					z_arr[SCREEN_SPACE(x, y)] = z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
@@ -1047,7 +1247,8 @@ void CCGWorkView::DrawLine(double* z_arr, COLORREF *arr, vec4 &p1, vec4 &p2, COL
 			}
 			else if (IN_RANGE(x, y)){
 				if (z < z_arr[SCREEN_SPACE(x, y)]){
-					arr[SCREEN_SPACE(x, y)] = c;
+					if (draw)
+						arr[SCREEN_SPACE(x, y)] = c;
 					z_arr[SCREEN_SPACE(x, y)] = z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
@@ -1082,7 +1283,8 @@ void CCGWorkView::DrawLine(double* z_arr, COLORREF *arr, vec4 &p1, vec4 &p2, COL
 			}
 			else if (IN_RANGE(x, y)){
 				if (z < z_arr[SCREEN_SPACE(x, y)]){
-					arr[SCREEN_SPACE(x, y)] = c;
+					if (draw)
+						arr[SCREEN_SPACE(x, y)] = c;
 					z_arr[SCREEN_SPACE(x, y)] = z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
@@ -1095,7 +1297,7 @@ void CCGWorkView::DrawLine(double* z_arr, COLORREF *arr, vec4 &p1, vec4 &p2, COL
 	return;
 }
 
-void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 cur_transform, COLORREF color){
+void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 cur_transform, mat4 inv_cur_transfrom, COLORREF color){
 	vec4 p1, p2;
 	std::unordered_map<int, std::vector<x_z_c_n_point>> x_y;
 	COLORREF c1, c2;
@@ -1145,8 +1347,10 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 			p2_normal = (p2_normal_pb / p2_normal_pb.p) - (p2_normal_pa / p2_normal_pa.p);
 			p2_normal = p2_normal * m_inverse;
 		}
+
 		p1 = p1 * cur_transform;
 		p2 = p2 *cur_transform;
+
 		if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD){
 			c1 = ApplyLight(color, p1_normal, p1 / p1.p);
 			c2 = ApplyLight(color, p2_normal, p2 / p2.p);
@@ -1187,8 +1391,10 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 							c = LinePointLight(scan_p1, scan_p2, c1, c2, x, y);
 						else
 							c = ApplyLight(color, n, vec4(x, y, z, 1));
+						
+						if (arr != NULL) 
+							arr[SCREEN_SPACE(x, y)] = c;
 
-						arr[SCREEN_SPACE(x, y)] = c;
 						z_arr[SCREEN_SPACE(x, y)] = z;
 
 						if (m_render_target == ID_RENDER_TOFILE){
@@ -1244,6 +1450,11 @@ void CCGWorkView::DrawBoundBox(double *z_arr, COLORREF *arr, model &model, mat4 
 	DrawLine(z_arr, arr, xmax_ymax_zmin * cur_transform, xmax_ymax_zmax * cur_transform, color, &psudo_normal, color, &psudo_normal);
 }
 
+bool CCGWorkView::VisibleToLight(LightParams light){
+	return true;
+}
+
+
 COLORREF CCGWorkView::ApplyLight(COLORREF in_color, vec4 normal, vec4 pos){
 
 	if (m_nLightShading == NULL) return in_color;
@@ -1277,108 +1488,77 @@ COLORREF CCGWorkView::ApplyLight(COLORREF in_color, vec4 normal, vec4 pos){
 	// apply diffuse reflection
 	for (int l = LIGHT_ID_1; l < MAX_LIGHT; l++){
 		if (m_lights[l].enabled){
+			if (VisibleToLight(m_lights[l])){
+				if (m_lights[l].type == LIGHT_TYPE_POINT){
 
-			if (m_lights[l].type == LIGHT_TYPE_POINT){
+					len_to_camera = sqrt(pow(pos.x, 2.0) +
+						pow(pos.y, 2.0) +
+						pow(pos.z, 2.0));
 
-				len_to_camera = sqrt(pow(pos.x, 2.0) +
-					pow(pos.y, 2.0) +
-					pow(pos.z, 2.0));
+					len_light_dist = sqrt(pow(pos.x - m_lights[l].rel_pos.x, 2.0) +
+						pow(pos.y - m_lights[l].rel_pos.y, 2.0) +
+						pow(pos.z - m_lights[l].rel_pos.z, 2.0));
 
-				len_light_dist = sqrt(pow(pos.x - m_lights[l].rel_pos.x, 2.0) +
-					pow(pos.y - m_lights[l].rel_pos.y, 2.0) +
-					pow(pos.z - m_lights[l].rel_pos.z, 2.0));
+					// angle between point normal and light source direction
+					cos_teta = ((pos.x - m_lights[l].rel_pos.x) * (normal.x) +
+						(pos.y - m_lights[l].rel_pos.y) * (normal.y) +
+						(pos.z - m_lights[l].rel_pos.z) * (normal.z)) /
+						(len_normal * len_light_dist);
 
-				// angle between point normal and light source direction
-				cos_teta = ((pos.x - m_lights[l].rel_pos.x) * (normal.x) +
-					(pos.y - m_lights[l].rel_pos.y) * (normal.y) +
-					(pos.z - m_lights[l].rel_pos.z) * (normal.z)) /
-					(len_normal * len_light_dist);
+					//diffuse light from source
+					// when the normal is facing the light source, add the calculation
+					// when the normal is not facing the light source, ignore it
+					red_inentsity += m_diffuse_k * ((double)m_lights[l].colorR / 255) * GetRValue(in_color) * ((cos_teta > 0) ? cos_teta : 0);
+					grn_inentsity += m_diffuse_k * ((double)m_lights[l].colorG / 255) * GetGValue(in_color) * ((cos_teta > 0) ? cos_teta : 0);
+					blu_inentsity += m_diffuse_k * ((double)m_lights[l].colorB / 255) * GetBValue(in_color) * ((cos_teta > 0) ? cos_teta : 0);
 
-				//diffuse light from source
-				// when the normal is facing the light source, add the calculation
-				// when the normal is not facing the light source, ignore it
-				red_inentsity += m_diffuse_k * ((double)m_lights[l].colorR / 255) * GetRValue(in_color) * ((cos_teta > 0) ? cos_teta : 0);
-				grn_inentsity += m_diffuse_k * ((double)m_lights[l].colorG / 255) * GetGValue(in_color) * ((cos_teta > 0) ? cos_teta : 0);
-				blu_inentsity += m_diffuse_k * ((double)m_lights[l].colorB / 255) * GetBValue(in_color) * ((cos_teta > 0) ? cos_teta : 0);
+					//specular light from source
+					double cos_big_teta = ((pos.x - m_lights[l].rel_pos.x) * (pos.x) +
+						(pos.y - m_lights[l].rel_pos.y) * (pos.y) +
+						(pos.z - m_lights[l].rel_pos.z) * (pos.z)) /
+						(len_to_camera * len_light_dist);
+					double cos_alpha = cos(acos(cos_big_teta) - 2 * acos(cos_teta));
 
-				//specular light from source
-				double cos_big_teta = ((pos.x - m_lights[l].rel_pos.x) * (pos.x) +
-					(pos.y - m_lights[l].rel_pos.y) * (pos.y) +
-					(pos.z - m_lights[l].rel_pos.z) * (pos.z)) /
-					(len_to_camera * len_light_dist);
-				double cos_alpha = cos(acos(cos_big_teta) - 2 * acos(cos_teta));
+					red_inentsity += m_speculr_k * ((double)m_lights[l].colorR / 255) * GetRValue(in_color) * ((cos_alpha > 0) ? pow(cos_alpha, m_speculr_n) : 0);
+					grn_inentsity += m_speculr_k * ((double)m_lights[l].colorG / 255) * GetGValue(in_color) * ((cos_alpha > 0) ? pow(cos_alpha, m_speculr_n) : 0);
+					blu_inentsity += m_speculr_k * ((double)m_lights[l].colorB / 255) * GetBValue(in_color) * ((cos_alpha > 0) ? pow(cos_alpha, m_speculr_n) : 0);
+				}
+				else if (m_lights[l].type == LIGHT_TYPE_DIRECTIONAL){
+					len_to_camera = sqrt(pow(pos.x, 2.0) +
+						pow(pos.y, 2.0) +
+						pow(pos.z, 2.0));
 
-				red_inentsity += m_speculr_k * ((double)m_lights[l].colorR / 255) * GetRValue(in_color) * ((cos_alpha > 0) ? pow(cos_alpha, m_speculr_n) : 0);
-				grn_inentsity += m_speculr_k * ((double)m_lights[l].colorG / 255) * GetGValue(in_color) * ((cos_alpha > 0) ? pow(cos_alpha, m_speculr_n) : 0);
-				blu_inentsity += m_speculr_k * ((double)m_lights[l].colorB / 255) * GetBValue(in_color) * ((cos_alpha > 0) ? pow(cos_alpha, m_speculr_n) : 0);
-			}
-			else if (m_lights[l].type == LIGHT_TYPE_DIRECTIONAL){
-				len_to_camera = sqrt(pow(pos.x, 2.0) +
-					pow(pos.y, 2.0) +
-					pow(pos.z, 2.0));
+					// the "light distance" here is the size of the direction
+					len_light_dist = sqrt(pow(m_lights[l].rel_dir.x, 2.0) +
+						pow(m_lights[l].rel_dir.y, 2.0) +
+						pow(m_lights[l].rel_dir.z, 2.0));
 
-				// the "light distance" here is the size of the direction
-				len_light_dist = sqrt(pow(m_lights[l].rel_dir.x, 2.0) +
-					pow(m_lights[l].rel_dir.y, 2.0) +
-					pow(m_lights[l].rel_dir.z, 2.0));
-				
-				cos_teta = ((m_lights[l].rel_dir.x) * (normal.x) +
-					(m_lights[l].rel_dir.y) * (normal.y) +
-					(m_lights[l].rel_dir.z) * (normal.z)) /
-					(len_normal * len_light_dist);
+					cos_teta = ((m_lights[l].rel_dir.x) * (normal.x) +
+						(m_lights[l].rel_dir.y) * (normal.y) +
+						(m_lights[l].rel_dir.z) * (normal.z)) /
+						(len_normal * len_light_dist);
 
-				//diffuse light from source
-				// when the normal is facing the light source, add the calculation
-				// when the normal is not facing the light source, ignore it
-				red_inentsity += m_diffuse_k * ((double)m_lights[l].colorR / 255) * GetRValue(in_color) * ((cos_teta > 0) ? cos_teta : 0);
-				grn_inentsity += m_diffuse_k * ((double)m_lights[l].colorG / 255) * GetGValue(in_color) * ((cos_teta > 0) ? cos_teta : 0);
-				blu_inentsity += m_diffuse_k * ((double)m_lights[l].colorB / 255) * GetBValue(in_color) * ((cos_teta > 0) ? cos_teta : 0);
+					//diffuse light from source
+					// when the normal is facing the light source, add the calculation
+					// when the normal is not facing the light source, ignore it
+					red_inentsity += m_diffuse_k * ((double)m_lights[l].colorR / 255) * GetRValue(in_color) * ((cos_teta > 0) ? cos_teta : 0);
+					grn_inentsity += m_diffuse_k * ((double)m_lights[l].colorG / 255) * GetGValue(in_color) * ((cos_teta > 0) ? cos_teta : 0);
+					blu_inentsity += m_diffuse_k * ((double)m_lights[l].colorB / 255) * GetBValue(in_color) * ((cos_teta > 0) ? cos_teta : 0);
 
-				//specular light from source
-				//specular light from source
-				double cos_big_teta = ((m_lights[l].rel_dir.x) * (pos.x) +
-					(m_lights[l].rel_dir.y) * (pos.y) +
-					(m_lights[l].rel_dir.z) * (pos.z)) /
-					(len_to_camera * len_light_dist);
-				double cos_alpha = cos(acos(cos_big_teta) - 2 * acos(cos_teta));
+					//specular light from source
+					double cos_big_teta = ((m_lights[l].rel_dir.x) * (pos.x) +
+						(m_lights[l].rel_dir.y) * (pos.y) +
+						(m_lights[l].rel_dir.z) * (pos.z)) /
+						(len_to_camera * len_light_dist);
+					double cos_alpha = cos(acos(cos_big_teta) - 2 * acos(cos_teta));
 
-				red_inentsity += m_speculr_k * ((double)m_lights[l].colorR / 255) * GetRValue(in_color) * ((cos_alpha > 0) ? pow(cos_alpha, m_speculr_n) : 0);
-				grn_inentsity += m_speculr_k * ((double)m_lights[l].colorG / 255) * GetGValue(in_color) * ((cos_alpha > 0) ? pow(cos_alpha, m_speculr_n) : 0);
-				blu_inentsity += m_speculr_k * ((double)m_lights[l].colorB / 255) * GetBValue(in_color) * ((cos_alpha > 0) ? pow(cos_alpha, m_speculr_n) : 0);
-			}
-			else if (m_lights[l].type == LIGHT_TYPE_SPOT){
-				// not needed for hw2
-				//len_light_dist = pow(m_lights[l].dirX - m_lights[l].posX, 2.0) +
-				//	pow(m_lights[l].dirY - m_lights[l].posY, 2.0) +
-				//	pow(m_lights[l].dirZ - m_lights[l].posZ, 2.0);
+					red_inentsity += m_speculr_k * ((double)m_lights[l].colorR / 255) * GetRValue(in_color) * ((cos_alpha > 0) ? pow(cos_alpha, m_speculr_n) : 0);
+					grn_inentsity += m_speculr_k * ((double)m_lights[l].colorG / 255) * GetGValue(in_color) * ((cos_alpha > 0) ? pow(cos_alpha, m_speculr_n) : 0);
+					blu_inentsity += m_speculr_k * ((double)m_lights[l].colorB / 255) * GetBValue(in_color) * ((cos_alpha > 0) ? pow(cos_alpha, m_speculr_n) : 0);
+				}
+				else if (m_lights[l].type == LIGHT_TYPE_SPOT){
 
-				//double point_dis = sqrt(pow(pos.x - m_lights[l].posX, 2)
-				//	+ pow(pos.y - m_lights[l].posY, 2)
-				//	+ pow(pos.z - m_lights[l].posZ, 2));
-
-				//cos_teta = ((pos.x - m_lights[l].posX) * (normal.x) +
-				//	(pos.y - m_lights[l].posY) * (normal.y) +
-				//	(pos.z - m_lights[l].posZ) * (normal.z)) /
-				//	(len_normal * len_light_dist);
-
-				//double cos_dis_teta = ((pos.x - m_lights[l].posX) * (m_lights[l].dirX - m_lights[l].posX) +
-				//	(pos.y - m_lights[l].posY) * (m_lights[l].dirY - m_lights[l].posY) +
-				//	(pos.z - m_lights[l].posZ) * (m_lights[l].dirZ - m_lights[l].posZ)) /
-				//	(point_dis * len_light_dist);
-
-
-				//if (cos_dis_teta <= 1 && cos_dis_teta >= -1){
-				//	if ((cos_teta < 0 && cos_dis_teta > 0) || (cos_teta > 0 && cos_dis_teta < 0)){
-				//		red_inentsity += ((double)m_lights[l].colorR / 255) * GetRValue(in_color)*-cos_teta * cos_dis_teta;
-				//		grn_inentsity += ((double)m_lights[l].colorG / 255) * GetGValue(in_color)*-cos_teta * cos_dis_teta;
-				//		blu_inentsity += ((double)m_lights[l].colorB / 255) * GetBValue(in_color)*-cos_teta * cos_dis_teta;
-				//	}
-				//	else{
-				//		red_inentsity += ((double)m_lights[l].colorR / 255) * GetRValue(in_color) *cos_teta * cos_dis_teta;
-				//		grn_inentsity += ((double)m_lights[l].colorG / 255) * GetGValue(in_color) *cos_teta * cos_dis_teta;
-				//		blu_inentsity += ((double)m_lights[l].colorB / 255) * GetBValue(in_color) *cos_teta * cos_dis_teta;
-				//	}
-				//}
+				}
 			}
 		}
 	}
@@ -1473,11 +1653,92 @@ void CCGWorkView::set_light_pos(mat4 view_space_trans){
 	}
 }
 
-void CCGWorkView::RenderLightScene(){
-	// TODO: render scence for light
+void CCGWorkView::RenderLightScene(LightParams light){
+	int prev_m_nView = m_nView;
+	int prev_m_nLightShading = m_nLightShading;
+	
+	
+	mat4 light_transform;
+
+	mat4 light_translate;
+	mat4 light_coord_system;
+	light_translate[0][0] = 1;
+	light_translate[3][0] = m_lights->posX;
+
+	light_translate[1][1] = 1;
+	light_translate[3][1] = m_lights->posY;
+
+	light_translate[2][2] = 1;
+	light_translate[3][2] = m_lights->posZ;
+
+	light_translate[3][3] = 1;
+
+	if (m_nLightView == ID_LIGHT1POV_Z){
+		light_coord_system[0][0] = -1;
+		light_coord_system[1][1] = 1;
+		light_coord_system[2][2] = -1;
+		light_coord_system[3][3] = 1;
+	}
+	else if (m_nLightView == ID_LIGHT1POV_NEG_Z){
+		light_coord_system[0][0] = 1;
+		light_coord_system[1][1] = 1;
+		light_coord_system[2][2] = 1;
+		light_coord_system[3][3] = 1;
+	}
+	else if (m_nLightView == ID_LIGHT1POV_Y){
+		light_coord_system[0][0] = 1;
+		light_coord_system[1][2] = -1;
+		light_coord_system[2][1] = 1;
+		light_coord_system[3][3] = 1;
+	}
+	else if (m_nLightView == ID_LIGHT1POV_NEG_Y){
+		light_coord_system[0][0] = 1;
+		light_coord_system[1][2] = 1;
+		light_coord_system[2][1] = -1;
+		light_coord_system[3][3] = 1;
+	}
+	else if (m_nLightView == ID_LIGHT1POV_X){
+		light_coord_system[0][2] = -1;
+		light_coord_system[1][1] = 1;
+		light_coord_system[2][0] = 1;
+		light_coord_system[3][3] = 1;
+	}
+	else if (m_nLightView == ID_LIGHT1POV_NEG_X){
+		light_coord_system[0][2] = 1;
+		light_coord_system[1][1] = 1;
+		light_coord_system[2][0] = -1;
+		light_coord_system[3][3] = 1;
+	}
+
+	std::fill_n(light.z_array_xdir, m_WindowWidth * m_WindowHeight, std::numeric_limits<double>::infinity());
+
+	for (unsigned int m = 0; m < models.size(); m++){
+		light_transform = models[m].view_space_trans * 
+						  models[m].obj_coord_trans	 * 
+						  models[m].camera_trans	 * 
+						  light_translate			 * 
+						  light_coord_system		 * 
+						  m_prespective_trans		 * //TODO change prespective light transform
+						  m_screen_space_scale		 * 
+						  m_screen_space_translate;
+
+		m_nLightShading = ID_LIGHT_SHADING_FLAT;
+		if (light.type == LIGHT_TYPE_POINT)
+			m_nView = ID_VIEW_PERSPECTIVE;
+		else if (light.type == LIGHT_TYPE_DIRECTIONAL)
+			m_nView = ID_VIEW_ORTHOGRAPHIC;
+
+		for (unsigned int pol = 0; pol < models[m].polygons.size(); pol++){
+			//ScanConversion(light.z_array_xdir, NULL, models[m].polygons[pol], light_transform, models[m].color);
+		}
+	}
+
+	m_nView = prev_m_nView;
+	m_nLightShading = prev_m_nLightShading;
 }
 
 void CCGWorkView::RenderScene() {
+	vec4 psudo_normal = vec4(0, 0, 0, 1);
 
 	if (m_render_target == ID_RENDER_TOFILE){
 		m_pngHandle.SetWidth(m_WindowWidth);
@@ -1489,7 +1750,12 @@ void CCGWorkView::RenderScene() {
 
 	}
 
-	vec4 psudo_normal = vec4(0, 0, 0, 1);
+	
+
+	//for (int i = 0; i < MAX_LIGHT; i++){
+	for (int i = 0; i < 1; i++){
+		RenderLightScene(m_lights[i]);
+	}
 
 	SetBackgound();
 	
@@ -1497,15 +1763,18 @@ void CCGWorkView::RenderScene() {
 	vec4 p1, p2;
 	polygon cur_polygon;
 	mat4 cur_transform;
+	mat4 inv_cur_transfrom;
 	for (unsigned int m = 0; m < models.size(); m++){
 		m_cur_transform = models[m].camera_trans;
 		if (m_nView == ID_VIEW_ORTHOGRAPHIC){
-			cur_transform = models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans * models[m].prespective_translate * m_screen_space_scale * m_screen_space_translate;
-			set_light_pos(models[m].camera_trans * models[m].prespective_translate);
+			cur_transform = models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans * m_camera_transpose * m_screen_space_scale * m_screen_space_translate;
+			inv_cur_transfrom = m_inv_screen_space_translate * m_inv_screen_space_scale * m_inv_camera_transpose * models[m].inv_camera_trans * models[m].inv_obj_coord_trans * models[m].inv_view_space_trans;
+			set_light_pos(models[m].camera_trans * m_camera_transpose);
 		}
 		else if (m_nView == ID_VIEW_PERSPECTIVE){
-			cur_transform = models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans * models[m].prespective_translate * m_prespective_trans * m_screen_space_scale * m_screen_space_translate;
-			set_light_pos(models[m].camera_trans * models[m].prespective_translate);
+			cur_transform = models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans * m_camera_transpose * m_prespective_trans * m_screen_space_scale * m_screen_space_translate;
+			inv_cur_transfrom = m_inv_screen_space_translate * m_inv_screen_space_scale * m_inv_prespective_trans * m_inv_camera_transpose * models[m].inv_camera_trans * models[m].inv_obj_coord_trans * models[m].inv_view_space_trans;
+			set_light_pos(models[m].camera_trans * m_camera_transpose);
 		}
 		if (m_light_view){
 			mat4 light_translate;
@@ -1564,14 +1833,15 @@ void CCGWorkView::RenderScene() {
 		if (render_type == ID_VIEW_SOLID || render_type == ID_VIEW_Z){
 			if (!m_back_face_culling){
 				for (unsigned int pol = 0; pol < models[m].polygons.size(); pol++){
-					ScanConversion(z_buffer, m_screen, models[m].polygons[pol], cur_transform, models[m].color);
+					ScanConversion(z_buffer, m_screen, models[m].polygons[pol], cur_transform, inv_cur_transfrom, models[m].color);
 				}
 			}
 			else{
 				for (unsigned int pol = 0; pol < models[m].polygons.size(); pol++){
 					p1 = models[m].polygons[pol].Normal(!m_override_normals).p_a * cur_transform;
 					p2 = models[m].polygons[pol].Normal(!m_override_normals).p_b * cur_transform;
-					if (p2.z / p2.p < p1.z / p1.p) ScanConversion(z_buffer, m_screen, models[m].polygons[pol], cur_transform, models[m].color);
+					if (p2.z / p2.p < p1.z / p1.p)
+						ScanConversion(z_buffer, m_screen, models[m].polygons[pol], cur_transform, inv_cur_transfrom, models[m].color);
 				}
 			}
 		}
@@ -1693,7 +1963,7 @@ void CCGWorkView::RenderScene() {
 						pl.points.push_back(p4);
 						int prev = m_nLightShading;
 						m_nLightShading = NULL;
-						ScanConversion(z_buffer, m_screen, pl, cur_transform, m_silhouette_color);
+						ScanConversion(z_buffer, m_screen, pl, cur_transform, inv_cur_transfrom, m_silhouette_color);
 						m_nLightShading = prev;
 					}
 				}
