@@ -87,15 +87,16 @@ bool CGSkelProcessIritDataFiles(CString &FileNames, int NumFiles)
 		CGSkelDumpOneTraversedObject);
 
 
-	// -------> Y
+	// -------> X
 	// |
 	// |
 	// |
 	// V
-	// X
+	// Y
 
 	// determine the primat screen space scale for this group of loaded objects
 	mat4 view_space_scale;
+	mat4 inv_view_space_scale;
 	double max_x, max_y, max_z;
 	double min_x, min_y, min_z;
 
@@ -128,16 +129,12 @@ bool CGSkelProcessIritDataFiles(CString &FileNames, int NumFiles)
 	view_space_scale[1][1] = (double)1 / max_box;
 	view_space_scale[2][2] = (double)1 / max_box;
 	view_space_scale[3][3] = 1;
-
-	mat4 depth_transpose;
-	depth_transpose[0][0] = 1;
-	depth_transpose[1][1] = 1;
-	depth_transpose[2][2] = 1;
-	depth_transpose[3][2] = 4;
-
-	depth_transpose[3][3] = 1;
-
 	
+	inv_view_space_scale[0][0] = max_box;
+	inv_view_space_scale[1][1] = max_box;
+	inv_view_space_scale[2][2] = max_box;
+	inv_view_space_scale[3][3] = 1;
+
 	CString indx;
 	CString file_full_name = FileNames.Mid(FileNames.ReverseFind('\\') + 1);
 
@@ -145,8 +142,8 @@ bool CGSkelProcessIritDataFiles(CString &FileNames, int NumFiles)
 	CString file_name = file_full_name.Tokenize(_T("."), n_tokens_pos);
 	for (int m = 0; m < model_cnt; m++){
 		models.rbegin()[m].view_space_trans = view_space_scale;
+		models.rbegin()[m].inv_view_space_trans = inv_view_space_scale;
 		indx.Format(_T("%d"), m);
-		models.rbegin()[m].prespective_translate = depth_transpose;
 		models.rbegin()[m].model_name = file_name + indx;
 	}
 
