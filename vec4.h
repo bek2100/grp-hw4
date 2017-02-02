@@ -6,6 +6,7 @@ class vec4
 public:
 	vec4();
 	vec4(double _x, double _y, double _z, double _p);
+	vec4(double _x, double _y, double _z, double d, double alpha, double scale);
 	~vec4();
 	unsigned int hash();
 	double x;

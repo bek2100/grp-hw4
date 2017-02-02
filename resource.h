@@ -56,6 +56,7 @@
 #define IDC_PIC_WIDTH                   1057
 #define IDC_FILE_NAME                   1058
 #define IDC_EDIT1                       1059
+#define IDC_EDIT_SHADOW_ERR             1059
 #define IDC_SPECULAR_N                  1060
 #define ID_FILE_LOAD                    32771
 #define ID_VIEW_ORTHOGRAPHIC            32772
@@ -122,13 +123,14 @@
 #define ID_LIGHT1POV_NEG_Y              32851
 #define ID_LIGHT1POV_NEG_X              32852
 #define ID_LIGHT_LIGHT1VIEW             32853
+#define ID_OPTIONS_SHADOWS              32854
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        144
-#define _APS_NEXT_COMMAND_VALUE         32854
+#define _APS_NEXT_COMMAND_VALUE         32855
 #define _APS_NEXT_CONTROL_VALUE         1058
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

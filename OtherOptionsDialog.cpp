@@ -19,9 +19,10 @@ OtherOptionsDialog::OtherOptionsDialog(CWnd* pParent /*=NULL*/)
 
 }
 
-OtherOptionsDialog::OtherOptionsDialog(double def_finess, CString _models_list, std::vector<bool> _active_modules, CWnd* pParent /*=NULL*/)
+OtherOptionsDialog::OtherOptionsDialog(double _shadow_err, double def_finess, CString _models_list, std::vector<bool> _active_modules, CWnd* pParent /*=NULL*/)
 	: CDialogEx(OtherOptionsDialog::IDD, pParent)
 {
+	shadow_err = _shadow_err;
 	finess = def_finess;
 	models_list = _models_list;
 	active_modules = _active_modules;
@@ -34,8 +35,9 @@ OtherOptionsDialog::~OtherOptionsDialog()
 void OtherOptionsDialog::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
+	DDX_Text(pDX, IDC_EDIT_SHADOW_ERR, shadow_err);
+	
 	double past_finess = finess;
-
 	DDX_Text(pDX, IDC_EDIT_FINESS, finess);
 	if (finess < 2){
 		CString er("Error, finess must be larger than 2, using old value.");

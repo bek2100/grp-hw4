@@ -1,5 +1,6 @@
 #pragma once
 #include "vec4.h"
+#include "mat4.h"
 
 typedef enum 
 {
@@ -64,13 +65,57 @@ public:
 	double* z_array_zdir;
 	double* z_array_neg_zdir;
 
+	mat4 transpose;
+	mat4 coord_system_x;
+	mat4 coord_system_neg_x;
+	mat4 coord_system_y;
+	mat4 coord_system_neg_y;
+	mat4 coord_system_z;
+	mat4 coord_system_neg_z;
+
 	vec4 rel_dir;
 
     LightParams():
 	enabled(false),type(LIGHT_TYPE_DIRECTIONAL),space(LIGHT_SPACE_VIEW),
 	colorR(255),colorG(255),colorB(255),posX(0),posY(0),posZ(0),
 	dirX(0),dirY(0),dirZ(0)
-    {}
+    {
+		transpose[0][0] = 1;
+		transpose[1][1] = 1;
+		transpose[2][2] = 1;
+		transpose[3][3] = 1;
+
+		coord_system_z[0][0] = -1;
+		coord_system_z[1][1] = 1;
+		coord_system_z[2][2] = -1;
+		coord_system_z[3][3] = 1;
+
+		coord_system_neg_z[0][0] = 1;
+		coord_system_neg_z[1][1] = 1;
+		coord_system_neg_z[2][2] = 1;
+		coord_system_neg_z[3][3] = 1;
+
+		coord_system_y[0][0] = 1;
+		coord_system_y[1][2] = -1;
+		coord_system_y[2][1] = 1;
+		coord_system_y[3][3] = 1;
+
+		coord_system_neg_y[0][0] = 1;
+		coord_system_neg_y[1][2] = 1;
+		coord_system_neg_y[2][1] = -1;
+		coord_system_neg_y[3][3] = 1;
+
+		coord_system_x[0][2] = -1;
+		coord_system_x[1][1] = 1;
+		coord_system_x[2][0] = 1;
+		coord_system_x[3][3] = 1;
+
+		coord_system_neg_x[0][2] = 1;
+		coord_system_neg_x[1][1] = 1;
+		coord_system_neg_x[2][0] = -1;
+		coord_system_neg_x[3][3] = 1;
+
+	}
 
 protected:
 private:
