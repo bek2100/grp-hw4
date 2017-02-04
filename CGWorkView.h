@@ -53,6 +53,7 @@ private:
 	bool m_back_face_culling;
 	bool m_silhouette;
 	bool m_light_view;
+	int m_texture;
 	double m_silhouette_thickness;
 	
 	CString m_strItdFileName;		// file name of IRIT data
@@ -75,10 +76,12 @@ private:
 		double z;
 		COLORREF c;
 		vec4 n;
+		vec4 origin;
 	};
 
 	// our functions
-	void DrawLine(double *z_arr, COLORREF *arr, vec4 &p1, vec4 &p2, COLORREF p1_color, vec4* p1_normal = NULL, COLORREF p2_color = NULL, vec4* p2_normal = NULL, std::unordered_map<int, std::vector<x_z_c_n_point>>* x_y = NULL);
+	COLORREF MarbleColor(vec4 pos, COLORREF c);
+	void DrawLine(double *z_arr, COLORREF *arr, vec4 &p1, vec4 &p2, COLORREF p1_color, vec4* p1_normal = NULL, COLORREF p2_color = NULL, vec4* p2_normal = NULL, std::unordered_map<int, std::vector<x_z_c_n_point>>* x_y = NULL, vec4* origin_1 = NULL, vec4* origin_2 = NULL);
 	void DrawBoundBox(double *z_arr, COLORREF *arr, model &m, mat4 cur_transform, COLORREF color);
 	void ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 cur_transform, mat4 inv_cur_transfrom, COLORREF color);
 	void SetBackgound();
@@ -153,6 +156,7 @@ protected:
 
 	PngWrapper m_pngHandle; // Png handle class for writing
 	PngWrapper m_pngBackground; // Png handle class for background
+	PngWrapper m_marble;
 
 	bool m_active_background;
 	bool m_valid_background;
@@ -261,6 +265,12 @@ public:
 	afx_msg void OnLight1povNegX();
 	afx_msg void OnLight1povNegY();
 	afx_msg void OnLight1povNegZ();
+	afx_msg void OnTextureWood();
+	afx_msg void OnUpdateTextureWood(CCmdUI *pCmdUI);
+	afx_msg void OnMarblePicture();
+	afx_msg void OnUpdateMarblePicture(CCmdUI *pCmdUI);
+	afx_msg void OnMarbleScale();
+	afx_msg void OnUpdateMarbleScale(CCmdUI *pCmdUI);
 };
 
 #ifndef _DEBUG  // debug version in CGWorkView.cpp

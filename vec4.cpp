@@ -17,7 +17,6 @@ vec4::vec4(double _x, double _y, double _z, double _p)
 	p = _p;
 }
 
-
 vec4::~vec4()
 {
 }
