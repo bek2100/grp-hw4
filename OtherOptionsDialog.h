@@ -10,7 +10,7 @@ class OtherOptionsDialog : public CDialogEx
 
 public:
 	OtherOptionsDialog(CWnd* pParent = NULL);   // standard constructor
-	OtherOptionsDialog(double def_finess, CString _models_list, std::vector<bool> active_modules, CWnd* pParent = NULL);
+	OtherOptionsDialog(double shadow_err, double def_finess, CString _models_list, std::vector<bool> active_modules, CWnd* pParent = NULL);
 	virtual ~OtherOptionsDialog();
 	CString models_list;
 // Dialog Data
@@ -22,6 +22,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	double finess;
+	double shadow_err;
 	std::vector<bool> active_modules;
 	afx_msg void OnEnChangeEdit1();
 	afx_msg void OnEnChangeEditFiness();

@@ -17,6 +17,20 @@ vec4::vec4(double _x, double _y, double _z, double _p)
 	p = _p;
 }
 
+
+vec4::vec4(double xp, double yp, double zp, double d, double alpha, double scale){
+	// get the true depth
+	z = (-scale * d * d * alpha) / (zp * (d - alpha) - scale * d * d);
+	
+	// get the true x, y, z 
+	y = yp * z / d;
+	x = xp * z / d;
+	p = z / d;
+
+	// get the "dolly" prespective z
+	z = zp *  z / d;
+}
+
 vec4::~vec4()
 {
 }

@@ -56,6 +56,7 @@
 #define IDC_PIC_WIDTH                   1057
 #define IDC_FILE_NAME                   1058
 #define IDC_EDIT1                       1059
+#define IDC_EDIT_SHADOW_ERR             1059
 #define IDC_SPECULAR_N                  1060
 #define ID_FILE_LOAD                    32771
 #define ID_VIEW_ORTHOGRAPHIC            32772
@@ -126,13 +127,14 @@
 #define ID_TEXTURE_WOOD                 32855
 #define ID_MARBLE_PICTURE               32856
 #define ID_MARBLE_SCALE                 32857
+#define ID_OPTIONS_SHADOWS              32858
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        144
-#define _APS_NEXT_COMMAND_VALUE         32858
+#define _APS_NEXT_COMMAND_VALUE         32859
 #define _APS_NEXT_CONTROL_VALUE         1058
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

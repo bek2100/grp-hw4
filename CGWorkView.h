@@ -54,6 +54,7 @@ private:
 	bool m_silhouette;
 	bool m_light_view;
 	int m_texture;
+	bool m_shadows;
 	double m_silhouette_thickness;
 	
 	CString m_strItdFileName;		// file name of IRIT data
@@ -74,6 +75,9 @@ private:
 	public:
 		double x;
 		double z;
+		double true_x;
+		double true_y;
+		double p;
 		COLORREF c;
 		vec4 n;
 		vec4 origin;
@@ -81,22 +85,24 @@ private:
 
 	// our functions
 	COLORREF MarbleColor(vec4 pos, COLORREF c);
-	void DrawLine(double *z_arr, COLORREF *arr, vec4 &p1, vec4 &p2, COLORREF p1_color, vec4* p1_normal = NULL, COLORREF p2_color = NULL, vec4* p2_normal = NULL, std::unordered_map<int, std::vector<x_z_c_n_point>>* x_y = NULL, vec4* origin_1 = NULL, vec4* origin_2 = NULL);
-	void DrawBoundBox(double *z_arr, COLORREF *arr, model &m, mat4 cur_transform, COLORREF color);
+	void DrawLine(mat4 inv_cur_transform, double *z_arr, COLORREF *arr, vec4 &p1, vec4 &p2, COLORREF p1_color, vec4* p1_normal = NULL, COLORREF p2_color = NULL, vec4* p2_normal = NULL, std::unordered_map<int, std::vector<x_z_c_n_point>>* x_y = NULL, vec4* origin_1 = NULL, vec4* origin_2 = NULL);
+	void DrawBoundBox(double *z_arr, COLORREF *arr, model &m, mat4 cur_transform, mat4 inv_cur_transform, COLORREF color);
 	void ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 cur_transform, mat4 inv_cur_transfrom, COLORREF color);
 	void SetBackgound();
 	void RenderLightScene(LightParams light);
-	bool VisibleToLight(LightParams light);
+	bool VisibleToLight(LightParams light, mat4 cur_inv_transform, vec4 point);
 	void set_light_pos(mat4 view_space_trans);
-	double LinePointDepth(vec4 &p1, vec4 &p2, int x, int y);
+	double LinePointDepth(vec4 &p1, vec4 &p2, double x, double y);
+	double LinePointRatio(vec4 &p1, vec4 &p2, double x, double y);
 
-	COLORREF ApplyLight(COLORREF in_color, vec4 normal, vec4 pos);
+	COLORREF ApplyLight(COLORREF in_color, vec4 normal, vec4 pos, mat4 cur_inv_transform);
 	COLORREF m_color_wireframe;
 	COLORREF m_background_color;
 	COLORREF m_boundbox_color;
 	COLORREF m_vertex_norm_color;
 	COLORREF m_polygon_norm_color;
 	COLORREF m_silhouette_color;
+	double m_shadow_err;
 
 	LightParams m_lights[MAX_LIGHT];	//configurable lights array
 	LightParams m_ambientLight;		//ambient light (only RGB is used)
@@ -271,6 +277,14 @@ public:
 	afx_msg void OnUpdateMarblePicture(CCmdUI *pCmdUI);
 	afx_msg void OnMarbleScale();
 	afx_msg void OnUpdateMarbleScale(CCmdUI *pCmdUI);
+	afx_msg void OnOptionsShadows();
+	afx_msg void OnUpdateOptionsShadows(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateLight1povX(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateLight1povNegX(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateLight1povY(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateLight1povNegY(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateLight1povZ(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateLight1povNegZ(CCmdUI *pCmdUI);
 };
 
 #ifndef _DEBUG  // debug version in CGWorkView.cpp
