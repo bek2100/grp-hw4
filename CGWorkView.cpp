@@ -1334,9 +1334,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
 				c = LinePointLight(p1, p2, p1_color, p2_color, x, y);
-			else
-				c = ApplyLight(p1_color, n, vec4(x, y, z, 1));
-						else if (draw)
+			else if (draw)
 				c = ApplyLight(p1_color, n, p * vec4(x, y, z, 1), inv_cur_transform);
 			else
 				c = p1_color;
@@ -1391,8 +1389,6 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
 				c = LinePointLight(p1, p2, p1_color, p2_color, x, y);
-			else
-				c = ApplyLight(p1_color, n, vec4(x, y, z, 1));
 			else if (draw)
 				c = ApplyLight(p1_color, n, p * vec4(x, y, z, 1), inv_cur_transform);
 			else
@@ -1444,8 +1440,6 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
 				c = LinePointLight(p1, p2, p1_color, p2_color, x, y);
-			else
-				c = ApplyLight(p1_color, n, vec4(x, y, z, 1));
 			else if (draw)
 				c = ApplyLight(p1_color, n, p * vec4(x, y, z, 1), inv_cur_transform);
 			else
@@ -1612,11 +1606,11 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 		x1 = p1 = p.points[pnt];
 		x2 = p2 = p.points[(pnt + 1) % p.points.size()];
 		if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD || m_nLightShading == ID_LIGHT_SHADING_PHONg){
-			
+
 			p1_normal_line = p.VertexNormal(!m_override_normals)[p1];
 			if (p1_normal_line.p_a == p1_normal_line.p_b)
 				p1_normal_line = p.VertexNormal(m_override_normals)[p1];
-			
+
 			p2_normal_line = p.VertexNormal(!m_override_normals)[p2];
 			if (p2_normal_line.p_a == p2_normal_line.p_b)
 				p2_normal_line = p.VertexNormal(m_override_normals)[p2];
@@ -1640,7 +1634,7 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 			c2 = ApplyLight(color, p2_normal, p2, inv_cur_transfrom);
 		}
 
-		
+
 		// skip polygons behind the camera
 		if (!(((p1.z > m_presepctive_d && p2.z > m_presepctive_d) && !(p1.x <= 0 && p2.x <= 0) && !(p1.y <= 0 && p2.y <= 0))
 			&& (m_nView == ID_VIEW_PERSPECTIVE) ||
@@ -1648,73 +1642,73 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 			return;
 		DrawLine(inv_cur_transfrom, z_arr, arr, p1, p2, c1, &p1_normal, c2, &p2_normal, &x_y, &x1, &x2);
 
-	
-	////////////////////////////////////////////
-	// z_buffer drawing
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	vec4 scan_p1, scan_p2 ,n1 ,n2;
-	COLORREF c;
-	vec4 pol_normal = p.Normal_Val(!m_override_normals);
-	double z;
-	double dis_x;
-	double dx;
-	double dy;
-	double dz;
-	vec4 origin;
-	double err;
-	double z, ratio;
-	double true_y, true_x;
-	for (auto iter = x_y.begin(); iter != x_y.end(); ++iter){
-		std::sort(iter->second.begin(), iter->second.end());
-		int y = iter->first;
-		if (iter->second.size() > 1){
-			scan_p1 = vec4(iter->second[0].x, y, iter->second[0].z, 1);
-			scan_p2 = vec4(iter->second[iter->second.size() - 1].x, y, iter->second[iter->second.size() - 1].z, 1);
-			c1 = iter->second[0].c;
-			c2 = iter->second[iter->second.size() - 1].c;
-			n1 = iter->second[0].n;
-			n2 = iter->second[iter->second.size() - 1].n;
-			origin = iter->second[0].origin;
-			dx = iter->second[iter->second.size() - 1].origin.x - origin.x;
-			dy = iter->second[iter->second.size() - 1].origin.y - origin.y;
-			dz = iter->second[iter->second.size() - 1].origin.z - origin.z;
-			dis_x = iter->second[iter->second.size() - 1].x - iter->second[0].x;
-			err = NULL;
-			true_y = iter->second[0].true_y;
-			true_x = iter->second[0].true_x;
-			for (int x = static_cast<int>(iter->second[0].x); x <= iter->second[iter->second.size() - 1].x; x++){
-				if (IN_RANGE(x, y)){
-					z = LinePointDepth(scan_p1, scan_p2, x, y);
-					ratio = LinePointRatio(iter->second[0].p * scan_p1, iter->second[iter->second.size() - 1].p * scan_p2, true_x, true_y);
-					if (z < z_arr[SCREEN_SPACE(x, y)]){
-						vec4 n = p1_normal;
-						
-						if (arr != NULL) {
-							if (m_nLightShading == ID_LIGHT_SHADING_PHONg)
-								n = LinePointNormal(scan_p1, scan_p2, n1, n2, x, y);
-							if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
-								c = LinePointLight(scan_p1, scan_p2, c1, c2, x, y);
-							else
-								c = ApplyLight(color, n, ratio * vec4(x, y, z, 1), inv_cur_transfrom);
 
-							arr[SCREEN_SPACE(x, y)] = c;
-						}
+		////////////////////////////////////////////
+		// z_buffer drawing
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		vec4 scan_p1, scan_p2, n1, n2;
+		COLORREF c;
+		vec4 pol_normal = p.Normal_Val(!m_override_normals);
+		double dis_x;
+		double dx;
+		double dy;
+		double dz;
+		vec4 origin;
+		double err;
+		double z, ratio;
+		double true_y, true_x;
+		for (auto iter = x_y.begin(); iter != x_y.end(); ++iter){
+			std::sort(iter->second.begin(), iter->second.end());
+			int y = iter->first;
+			if (iter->second.size() > 1){
+				scan_p1 = vec4(iter->second[0].x, y, iter->second[0].z, 1);
+				scan_p2 = vec4(iter->second[iter->second.size() - 1].x, y, iter->second[iter->second.size() - 1].z, 1);
+				c1 = iter->second[0].c;
+				c2 = iter->second[iter->second.size() - 1].c;
+				n1 = iter->second[0].n;
+				n2 = iter->second[iter->second.size() - 1].n;
+				origin = iter->second[0].origin;
+				dx = iter->second[iter->second.size() - 1].origin.x - origin.x;
+				dy = iter->second[iter->second.size() - 1].origin.y - origin.y;
+				dz = iter->second[iter->second.size() - 1].origin.z - origin.z;
+				dis_x = iter->second[iter->second.size() - 1].x - iter->second[0].x;
+				err = NULL;
+				true_y = iter->second[0].true_y;
+				true_x = iter->second[0].true_x;
+				for (int x = static_cast<int>(iter->second[0].x); x <= iter->second[iter->second.size() - 1].x; x++){
+					if (IN_RANGE(x, y)){
+						z = LinePointDepth(scan_p1, scan_p2, x, y);
+						ratio = LinePointRatio(iter->second[0].p * scan_p1, iter->second[iter->second.size() - 1].p * scan_p2, true_x, true_y);
+						if (z < z_arr[SCREEN_SPACE(x, y)]){
+							vec4 n = p1_normal;
 
-                        if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(origin, c);
-                        if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(origin, c);
-                        z_arr[SCREEN_SPACE(x, y)] = z;
-						if (m_render_target == ID_RENDER_TOFILE){
-							m_pngHandle.SetValue(x, y, arr[SCREEN_SPACE(x, y)]);
+							if (arr != NULL) {
+								if (m_nLightShading == ID_LIGHT_SHADING_PHONg)
+									n = LinePointNormal(scan_p1, scan_p2, n1, n2, x, y);
+								if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
+									c = LinePointLight(scan_p1, scan_p2, c1, c2, x, y);
+								else
+									c = ApplyLight(color, n, ratio * vec4(x, y, z, 1), inv_cur_transfrom);
+
+								if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(origin, c);
+								if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(origin, c);
+
+								arr[SCREEN_SPACE(x, y)] = c;
+							}
+
+							z_arr[SCREEN_SPACE(x, y)] = z;
+							if (m_render_target == ID_RENDER_TOFILE){
+								m_pngHandle.SetValue(x, y, arr[SCREEN_SPACE(x, y)]);
+							}
 						}
 					}
+					if (m_texture != NULL) err = NextPoint(origin, iter->second[iter->second.size() - 1].origin, dis_x, dx, dy, dz, err);
+					true_x++;
 				}
-				if (m_texture != NULL) err = NextPoint(origin, iter->second[iter->second.size() - 1].origin, dis_x, dx, dy, dz, err);
-				true_x++;
 			}
 		}
 	}
 }
-
 void CCGWorkView::DrawBoundBox(double *z_arr, COLORREF *arr, model &model, mat4 cur_transform, mat4 inv_cur_transform, COLORREF color){
 
 	double minx = model.min_vec.x;
@@ -1740,22 +1734,22 @@ void CCGWorkView::DrawBoundBox(double *z_arr, COLORREF *arr, model &model, mat4 
 	vec4 psudo_normal = vec4(0, 0, 0, 1);
 
 	// zmin rectangle first
-	DrawLine(z_arr, arr, xmin_ymin_zmin * cur_transform, xmin_ymax_zmin * cur_transform, color, inv_cur_transform, &psudo_normal, color, &psudo_normal);
-	DrawLine(z_arr, arr, xmin_ymax_zmin * cur_transform, xmax_ymax_zmin * cur_transform, color, inv_cur_transform, &psudo_normal, color, &psudo_normal);
-	DrawLine(z_arr, arr, xmax_ymax_zmin * cur_transform, xmax_ymin_zmin * cur_transform, color, inv_cur_transform, &psudo_normal, color, &psudo_normal);
-	DrawLine(z_arr, arr, xmax_ymin_zmin * cur_transform, xmin_ymin_zmin * cur_transform, color, inv_cur_transform, &psudo_normal, color, &psudo_normal);
+	DrawLine(inv_cur_transform,z_arr, arr, xmin_ymin_zmin * cur_transform, xmin_ymax_zmin * cur_transform, color, &psudo_normal, color, &psudo_normal);
+	DrawLine(inv_cur_transform, z_arr, arr, xmin_ymax_zmin * cur_transform, xmax_ymax_zmin * cur_transform, color, &psudo_normal, color, &psudo_normal);
+	DrawLine(inv_cur_transform, z_arr, arr, xmax_ymax_zmin * cur_transform, xmax_ymin_zmin * cur_transform, color, &psudo_normal, color, &psudo_normal);
+	DrawLine(inv_cur_transform, z_arr, arr, xmax_ymin_zmin * cur_transform, xmin_ymin_zmin * cur_transform, color, &psudo_normal, color, &psudo_normal);
 
 	// zmax rectangle second
-	DrawLine(z_arr, arr, xmin_ymin_zmax * cur_transform, xmin_ymax_zmax * cur_transform, color, inv_cur_transform, &psudo_normal, color, &psudo_normal);
-	DrawLine(z_arr, arr, xmin_ymax_zmax * cur_transform, xmax_ymax_zmax * cur_transform, color, inv_cur_transform, &psudo_normal, color, &psudo_normal);
-	DrawLine(z_arr, arr, xmax_ymax_zmax * cur_transform, xmax_ymin_zmax * cur_transform, color, inv_cur_transform, &psudo_normal, color, &psudo_normal);
-	DrawLine(z_arr, arr, xmax_ymin_zmax * cur_transform, xmin_ymin_zmax * cur_transform, color, inv_cur_transform, &psudo_normal, color, &psudo_normal);
+	DrawLine(inv_cur_transform,z_arr, arr, xmin_ymin_zmax * cur_transform, xmin_ymax_zmax * cur_transform, color, &psudo_normal, color, &psudo_normal);
+	DrawLine(inv_cur_transform, z_arr, arr, xmin_ymax_zmax * cur_transform, xmax_ymax_zmax * cur_transform, color, &psudo_normal, color, &psudo_normal);
+	DrawLine(inv_cur_transform, z_arr, arr, xmax_ymax_zmax * cur_transform, xmax_ymin_zmax * cur_transform, color, &psudo_normal, color, &psudo_normal);
+	DrawLine(inv_cur_transform, z_arr, arr, xmax_ymin_zmax * cur_transform, xmin_ymin_zmax * cur_transform, color, &psudo_normal, color, &psudo_normal);
 
 	// connect the two rectangles next
-	DrawLine(z_arr, arr, xmin_ymin_zmin * cur_transform, xmin_ymin_zmax * cur_transform, color, inv_cur_transform, &psudo_normal, color, &psudo_normal);
-	DrawLine(z_arr, arr, xmin_ymax_zmin * cur_transform, xmin_ymax_zmax * cur_transform, color, inv_cur_transform, &psudo_normal, color, &psudo_normal);
-	DrawLine(z_arr, arr, xmax_ymin_zmin * cur_transform, xmax_ymin_zmax * cur_transform, color, inv_cur_transform, &psudo_normal, color, &psudo_normal);
-	DrawLine(z_arr, arr, xmax_ymax_zmin * cur_transform, xmax_ymax_zmax * cur_transform, color, inv_cur_transform, &psudo_normal, color, &psudo_normal);
+	DrawLine(inv_cur_transform, z_arr, arr, xmin_ymin_zmin * cur_transform, xmin_ymin_zmax * cur_transform, color, &psudo_normal, color, &psudo_normal);
+	DrawLine(inv_cur_transform, z_arr, arr, xmin_ymax_zmin * cur_transform, xmin_ymax_zmax * cur_transform, color, &psudo_normal, color, &psudo_normal);
+	DrawLine(inv_cur_transform,z_arr, arr, xmax_ymin_zmin * cur_transform, xmax_ymin_zmax * cur_transform, color, &psudo_normal, color, &psudo_normal);
+	DrawLine(inv_cur_transform,z_arr, arr, xmax_ymax_zmin * cur_transform, xmax_ymax_zmax * cur_transform, color, &psudo_normal, color, &psudo_normal);
 }
 
 bool CCGWorkView::VisibleToLight(LightParams light, mat4 cur_inv_transform, vec4 point){
@@ -2132,7 +2126,7 @@ void CCGWorkView::RenderScene() {
 					p2 = (models[m].points_list[pnt].p_b)* cur_transform;
 					int prev_shading = m_nLightShading;
 					m_nLightShading = ID_LIGHT_SHADING_FLAT;
-					DrawLine(z_buffer, m_screen, p1, p2, models[m].color, inv_cur_transfrom, &psudo_normal, models[m].color, &psudo_normal);
+					DrawLine(inv_cur_transfrom, z_buffer, m_screen, p1, p2, models[m].color, &psudo_normal, models[m].color, &psudo_normal);
 					m_nLightShading = prev_shading;
 				}
 			}
@@ -2144,7 +2138,7 @@ void CCGWorkView::RenderScene() {
 						for (unsigned int p = 0; p < models[m].polygons[pol].points.size(); p++){
 							int prev_shading = m_nLightShading;
 							m_nLightShading = ID_LIGHT_SHADING_FLAT;
-							DrawLine(z_buffer, m_screen, models[m].polygons[pol].points[p] * cur_transform, models[m].polygons[pol].points[(p + 1) % models[m].polygons[pol].points.size()] * cur_transform, models[m].color, inv_cur_transfrom, &psudo_normal);
+							DrawLine(inv_cur_transfrom, z_buffer, m_screen, models[m].polygons[pol].points[p] * cur_transform, models[m].polygons[pol].points[(p + 1) % models[m].polygons[pol].points.size()] * cur_transform, models[m].color, &psudo_normal);
 							m_nLightShading = prev_shading;
 						}
 					}
@@ -2159,7 +2153,7 @@ void CCGWorkView::RenderScene() {
 				p2 = cur_polygon.Normal(given_polygon_normal).p_b * cur_transform;
 				int prev_shading = m_nLightShading;
 				m_nLightShading = ID_LIGHT_SHADING_FLAT;
-				DrawLine(z_buffer, m_screen, p1, p2, m_polygon_norm_color, inv_cur_transfrom, &psudo_normal);
+				DrawLine(inv_cur_transfrom, z_buffer, m_screen, p1, p2, m_polygon_norm_color, &psudo_normal);
 				m_nLightShading = prev_shading;
 			}
 		}
@@ -2180,7 +2174,7 @@ void CCGWorkView::RenderScene() {
 				
 				int prev_shading = m_nLightShading;
 				m_nLightShading = ID_LIGHT_SHADING_FLAT;
-				DrawLine(z_buffer, m_screen, p1, p2, m_vertex_norm_color, inv_cur_transfrom, &psudo_normal);
+				DrawLine(inv_cur_transfrom, z_buffer, m_screen, p1, p2, m_vertex_norm_color, &psudo_normal);
 				m_nLightShading = prev_shading;
 			}
 		}
