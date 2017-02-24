@@ -44,7 +44,8 @@ extern IPFreeformConvStateStruct CGSkelFFCState;
 #define STATUS_BAR_TEXT(str) (((CMainFrame*)GetParentFrame())->getStatusBar().SetWindowText(str))
 
 #define IN_RANGE(x, y) ((1 <= x) && (x < (m_WindowWidth - 1)) && (1 <= y) && (y < (m_WindowHeight - 1)))
-#define SCREEN_SPACE(x, y) (x + m_WindowWidth * y)
+#define SCREEN_SPACE(x, y) (x + m_WindowWidth * (y))
+#define SCREEN_SPACE_ALIASING(x, y) (x + (m_WindowWidth / m_nAntiAliasingDim) * (y))
 #define BGR(x) RGB(GetBValue(x), GetGValue(x), GetRValue(x));
 #define SET_RGB(r,g,b) ((r)<<24|(g)<<16|(b)<<8|0)
 #define SET_RGBA(r,g,b,a) ((r)<<24|(g)<<16|(b)<<8|a)
@@ -53,6 +54,8 @@ extern IPFreeformConvStateStruct CGSkelFFCState;
 #define GET_B(x) (((x)&0x0000ff00)>>8)
 #define GET_A(x) ((x)&0x000000ff)
 #define RENDER_LIGHT 10
+#define ANTI_ALIASING_DIM_5X5 5
+#define ANTI_ALIASING_DIM_3X3 3
 
 COLORREF marble_colors[33] = { RGB(255, 248, 220), RGB(255, 235, 205), RGB(255, 228, 196), RGB(218, 165, 32), RGB(255, 222, 173), RGB(245, 222, 179), RGB(222, 184, 135), RGB(210, 180, 140), RGB(222, 184, 135), RGB(222, 184, 135), RGB(218, 165, 32), RGB(205, 133, 63), RGB(210, 105, 30), RGB(139, 69, 19), RGB(160, 82, 45), RGB(165, 42, 42), RGB(128, 0, 0), RGB(165, 42, 42), RGB(160, 82, 45), RGB(139, 69, 19), RGB(210, 105, 30), RGB(205, 133, 63), RGB(218, 165, 32), RGB(222, 184, 135), RGB(245, 222, 179), RGB(210, 180, 140), RGB(222, 184, 135), RGB(245, 222, 179), RGB(255, 222, 173), RGB(255, 228, 196), RGB(255, 235, 205), RGB(255, 248, 220), RGB(222, 184, 135) };
 
@@ -162,7 +165,25 @@ BEGIN_MESSAGE_MAP(CCGWorkView, CView)
 	ON_UPDATE_COMMAND_UI(ID_LIGHT1POV_NEG_Y, &CCGWorkView::OnUpdateLight1povNegY)
 	ON_UPDATE_COMMAND_UI(ID_LIGHT1POV_Z, &CCGWorkView::OnUpdateLight1povZ)
 	ON_UPDATE_COMMAND_UI(ID_LIGHT1POV_NEG_Z, &CCGWorkView::OnUpdateLight1povNegZ)
-END_MESSAGE_MAP()
+	ON_UPDATE_COMMAND_UI(ID_ANTIALIASING_OFF, &CCGWorkView::OnUpdateAntialiasingOff)
+	ON_COMMAND(ID_ANTIALIASING_OFF, &CCGWorkView::OnAntialiasingOff)
+	ON_COMMAND(ID_ANTIALIASING_SINC3X3, &CCGWorkView::OnAntialiasingSinc3x3)
+	ON_UPDATE_COMMAND_UI(ID_ANTIALIASING_SINC3X3, &CCGWorkView::OnUpdateAntialiasingSinc3x3)
+	ON_UPDATE_COMMAND_UI(ID_ANTIALIASING_SINC5X5, &CCGWorkView::OnUpdateAntialiasingSinc5x5)
+	ON_COMMAND(ID_ANTIALIASING_SINC5X5, &CCGWorkView::OnAntialiasingSinc5x5)
+	ON_UPDATE_COMMAND_UI(ID_ANTIALIASING_BOX3X3, &CCGWorkView::OnUpdateAntialiasingBox3x3)
+	ON_COMMAND(ID_ANTIALIASING_BOX3X3, &CCGWorkView::OnAntialiasingBox3x3)
+	ON_UPDATE_COMMAND_UI(ID_ANTIALIASING_BOX5X5, &CCGWorkView::OnUpdateAntialiasingBox5x5)
+	ON_COMMAND(ID_ANTIALIASING_BOX5X5, &CCGWorkView::OnAntialiasingBox5x5)
+	ON_UPDATE_COMMAND_UI(ID_ANTIALIASING_TRIANGLE3X3, &CCGWorkView::OnUpdateAntialiasingTriangle3x3)
+	ON_COMMAND(ID_ANTIALIASING_TRIANGLE3X3, &CCGWorkView::OnAntialiasingTriangle3x3)
+	ON_UPDATE_COMMAND_UI(ID_ANTIALIASING_TRIANGLE5X5, &CCGWorkView::OnUpdateAntialiasingTriangle5x5)
+	ON_COMMAND(ID_ANTIALIASING_TRIANGLE5X5, &CCGWorkView::OnAntialiasingTriangle5x5)
+	ON_UPDATE_COMMAND_UI(ID_ANTIALIASING_GAUSSIAN3X3, &CCGWorkView::OnUpdateAntialiasingGaussian3x3)
+	ON_COMMAND(ID_ANTIALIASING_GAUSSIAN3X3, &CCGWorkView::OnAntialiasingGaussian3x3)
+	ON_UPDATE_COMMAND_UI(ID_ANTIALIASING_GAUSSIAN5X5, &CCGWorkView::OnUpdateAntialiasingGaussian5x5)
+	ON_COMMAND(ID_ANTIALIASING_GAUSSIAN5X5, &CCGWorkView::OnAntialiasingGaussian5x5)
+	END_MESSAGE_MAP()
 
 
 // A patch to fix GLaux disappearance from VS2005 to VS2008
@@ -194,6 +215,9 @@ CCGWorkView::CCGWorkView()
 	CGSkelFFCState.FineNess = 2;
 
 	m_bIsPerspective = false;
+
+	m_nAntiAliasing = ID_ANTIALIASING_OFF;
+	m_nAntiAliasingDim = 1;
 
 	m_camera_transpose[0][0] = 1;
 	m_camera_transpose[1][1] = 1;
@@ -369,8 +393,8 @@ void CCGWorkView::OnSize(UINT nType, int cx, int cy)
 	}
 
 	// save the width and height of the current window
-	m_WindowWidth = cx;
-	m_WindowHeight = cy;
+	m_WindowWidth = m_nAntiAliasingDim * cx;
+	m_WindowHeight = m_nAntiAliasingDim * cy;
 
 	m_OriginalWindowWidth = m_WindowWidth;
 	m_OriginalWindowHeight = m_WindowHeight;
@@ -528,6 +552,7 @@ void CCGWorkView::OnDestroy()
 
 /////////////////////////////////////////////////////////////////////////////
 // User Defined Functions
+LPRECT rect = (LPRECT)calloc(1, sizeof(LPRECT));
 
 bool past_pressed;
 LRESULT CCGWorkView::OnMouseMovement(WPARAM wparam, LPARAM lparam){
@@ -865,55 +890,6 @@ LRESULT CCGWorkView::OnMouseMovement(WPARAM wparam, LPARAM lparam){
 	return 0;
 };
 
-static double Depth(std::vector<vec4> q, int x, int y){
-	vec4 p1, p2;
-	std::vector<vec4> points;
-	unsigned int i;
-
-	if (x == static_cast<int>(p1.x / p1.p) && y == static_cast<int>(p1.y / p1.p)) return p1.z / p1.p;
-	if (x == static_cast<int>(p2.x / p2.p) && y == static_cast<int>(p2.y / p2.p)) return p2.z / p2.p;
-
-	for (i = 0; i < q.size(); i++){
-		p1 = q[i];
-		p2 = q[(i + 1) % q.size()];
-		if (y == static_cast<int>(p1.y / p1.p)) points.push_back(vec4(p1.x / p1.p, y, p1.z / p1.p, 1));
-		if (y == static_cast<int>(p2.y / p2.p)) points.push_back(vec4(p2.x / p2.p, y, p2.z / p2.p, 1));
-		double y1 = max(p1.y / p1.p, p2.y / p2.p);
-		double y2 = min(p1.y / p1.p, p2.y / p2.p);
-		if (y < y1 && y > y2){
-			if (x == static_cast<int> (p1.x / p1.p))
-				return p1.z / p1.p;
-			if (x == static_cast<int>(p2.x / p1.p))
-				return p2.z / p2.p;
-			double m = (p1.x / p1.p - p2.x / p2.p) / (p1.y / p1.p - p2.y / p2.p);
-			double x1 = m*y - m*(p1.y / p1.p) + (p1.x / p1.p);
-			double d1 = sqrt(pow(p1.y / p1.p - y, 2) + pow(p1.x / p1.p - x1, 2));
-			double d = sqrt(pow(p1.y / p1.p - p2.y / p2.p, 2) + pow(p1.x / p1.p - p2.x / p2.p, 2));
-			double z = (p2.z / p2.p)*(d1 / d) + (1 - d1 / d)*(p1.z / p1.p);
-			//double z = LinePointDepth(p1, p2, x, y);
-			if (x == static_cast<int>(x1))
-				return z;
-			points.push_back(vec4(x1, y, z, 1));
-		}
-	}
-
-	for (i = 0; i < points.size(); i++){
-		p1 = points[i];
-		p2 = points[(i + 1) % points.size()];
-		double x1 = max(p1.x, p2.x);
-		double x2 = min(p1.x, p2.x);
-		if (x1 == x2) return p1.z / p1.p;
-		if (x < static_cast<int>(x1) && x > static_cast<int>(x2)){
-			double d1 = p1.x -x;
-			double d = p1.x - p2.x;
-			double z = p1.z*(1- (d1 / d)) + (d1 / d)*p2.z;
-			return z;
-		}
-	}
-
-	return p2.z; //cheating 
-}
-
 static double Noise(vec4 pos){
 	return sin(sqrt(pow(pos.x, 2) + pow(pos.y, 2) + pow(pos.z, 2)));
 	//return abs(sin(pos.x));
@@ -951,7 +927,6 @@ static COLORREF WoodColor(vec4 pos, COLORREF c){
 	COLORREF cur_color = wood_colors[static_cast<int>(val_x * 9)];
 	return RGB(static_cast<int>((GetBValue(cur_color) * GetRValue(c)) / 255), static_cast<int>((GetGValue(cur_color) *GetGValue(c)) / 255), static_cast<int>((GetRValue(cur_color)*GetBValue(c) / 255)));
 }
-
 
 double CCGWorkView::LinePointDepth(vec4 &p1, vec4 &p2, double x, double y){
 	
@@ -1709,6 +1684,7 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 		}
 	}
 }
+
 void CCGWorkView::DrawBoundBox(double *z_arr, COLORREF *arr, model &model, mat4 cur_transform, mat4 inv_cur_transform, COLORREF color){
 
 	double minx = model.min_vec.x;
@@ -1785,7 +1761,6 @@ bool CCGWorkView::VisibleToLight(LightParams light, mat4 cur_inv_transform, vec4
 	
 	return false;
 }
-
 
 COLORREF CCGWorkView::ApplyLight(COLORREF in_color, vec4 normal, vec4 pos, mat4 cur_inv_transform){
 	if (m_nLightShading == NULL) return in_color;
@@ -2037,9 +2012,58 @@ void CCGWorkView::RenderLightScene(LightParams light){
 	m_nLightShading = prev_m_nLightShading;
 }
 
+void CCGWorkView::AntiAliasing(COLORREF *out_arr, COLORREF *in_arr){
+	if (m_nAntiAliasing == ID_ANTIALIASING_OFF){
+		std::memcpy(out_arr, in_arr, m_WindowWidth * m_WindowHeight * sizeof(COLORREF));
+		return;
+	}
+
+	double r_min, g_min, b_min;
+	double r_max, g_max, b_max;
+	double f_r, f_g, f_b;
+
+	r_min = g_min = b_min = 0;
+	r_max = g_max = b_max = 255;
+	
+	for (int y = 0; y < m_WindowHeight / m_nAntiAliasingDim; y++){
+		for (int x = 0; x < m_WindowWidth / m_nAntiAliasingDim; x++){
+			f_r = f_g = f_b = 0;
+			// apply the filter
+			for (int m_j = 0; m_j < m_nAntiAliasingDim; m_j++){
+				for (int m_i = 0; m_i < m_nAntiAliasingDim; m_i++){
+					if (IN_RANGE(m_nAntiAliasingDim * x + m_i, m_nAntiAliasingDim * y + m_j)){
+						f_r += m_AntiAliasingMask[m_i][m_j] * GetRValue(in_arr[SCREEN_SPACE(m_nAntiAliasingDim * x + m_i, m_nAntiAliasingDim * y + m_j)]);
+						f_g += m_AntiAliasingMask[m_i][m_j] * GetGValue(in_arr[SCREEN_SPACE(m_nAntiAliasingDim * x + m_i, m_nAntiAliasingDim * y + m_j)]);
+						f_b += m_AntiAliasingMask[m_i][m_j] * GetBValue(in_arr[SCREEN_SPACE(m_nAntiAliasingDim * x + m_i, m_nAntiAliasingDim * y + m_j)]);
+					}
+					else
+						bool shit = true;
+				}
+			}
+
+			//r_min = min(r_min, f_r);
+			//g_min = min(g_min, f_g);
+			//b_min = min(b_min, f_g);
+
+			//r_max = max(r_max, f_r);
+			//g_max = max(g_max, f_g);
+			//b_max = max(b_max, f_g);
+
+			if (f_r < -0.5 || f_r > 255.5 || f_g < -0.5 || f_g > 255.5 || f_b < -0.5 || f_b > 255.5)
+				bool shit = true;
+
+			out_arr[SCREEN_SPACE_ALIASING(x, y)] = RGB(static_cast<int>(max(0, min(f_r, 255))), static_cast<int>(max(0, min(f_g, 255))), static_cast<int>(max(0, min(f_b, 255))));
+		}
+	}
+
+};
+
 void CCGWorkView::RenderScene() {
 	vec4 psudo_normal = vec4(0, 0, 0, 1);
 
+	///////////////////////////////
+	// PNG render handle
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	if (m_render_target == ID_RENDER_TOFILE){
 		m_pngHandle.SetWidth(m_WindowWidth);
 		m_pngHandle.SetHeight(m_WindowHeight);
@@ -2050,13 +2074,22 @@ void CCGWorkView::RenderScene() {
 
 	}
 
+	///////////////////////////////
+	// Light POV rendering
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//for (int i = 0; i < MAX_LIGHT; i++){
 	for (int i = 0; i < 1; i++){
 		RenderLightScene(m_lights[i]);
 	}
 
-	SetBackgound();
-	
+	///////////////////////////////
+	// Background drawing
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	SetBackgound();	
+
+	///////////////////////////////
+	// Camera POV rendering
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	std::fill_n(z_buffer, m_WindowWidth * m_WindowHeight, std::numeric_limits<double>::infinity());
 	vec4 p1, p2;
 	polygon cur_polygon;
@@ -2243,17 +2276,35 @@ void CCGWorkView::RenderScene() {
 		}
 	}
 
+	///////////////////////////////
+	// Anti Aliasing
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	COLORREF* m_screen_out;
+	int real_window_width = (m_WindowWidth / m_nAntiAliasingDim);
+	int real_window_height = (m_WindowHeight / m_nAntiAliasingDim);
 
+	GetWindowRect(rect);
+
+	if (m_nAntiAliasing == ID_ANTIALIASING_OFF)
+		m_screen_out = m_screen;
+	else {
+		m_screen_out = (COLORREF*)calloc(real_window_width * real_window_height, sizeof(COLORREF));
+		AntiAliasing(m_screen_out, m_screen);
+	}
+
+	///////////////////////////////
+	// Bruffer to output
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	if (m_render_target == ID_RENDER_TOFILE){
 		m_pngHandle.WritePng();
 	}
 	else {
 
-		m_map = CreateBitmap(m_WindowWidth,	// width
-			m_WindowHeight,					// height
+		m_map = CreateBitmap(real_window_width,	// width
+			real_window_height,					// height
 			1,								// Color Planes, unfortanutelly don't know what is it actually. Let it be 1
 			8 * 4,							// Size of memory for one pixel in bits (in win32 4 bytes = 4*8 bits)
-			(void*)m_screen);				// pointer to array
+			(void*)m_screen_out);			// pointer to array
 
 		SelectObject(m_hDC, m_map);			// Inserting picture into our temp HDC
 
@@ -2261,8 +2312,8 @@ void CCGWorkView::RenderScene() {
 		BitBlt(m_pDC->GetSafeHdc(),			// Destination
 			0,								// x and
 			0,								// y - upper-left corner of place, where we'd like to copy
-			m_WindowWidth,					// width of the region
-			m_WindowHeight,					// height
+			real_window_width,					// width of the region
+			real_window_height,					// height
 			m_hDC,							// source
 			0,								// x and
 			0,								// y of upper left corner  of part of the source, from where we'd like to copy
@@ -2271,6 +2322,8 @@ void CCGWorkView::RenderScene() {
 	}
 
 	DeleteObject(m_map);
+	if (m_nAntiAliasing != ID_ANTIALIASING_OFF)
+		delete m_screen_out;
 	return;
 }
 
@@ -2674,8 +2727,8 @@ void CCGWorkView::OnRenderTofile()
 
 	if (dlg.DoModal() == IDOK)
 	{
-		m_WindowHeight = dlg.m_pic_height;
-		m_WindowWidth = dlg.m_pic_width;
+		m_WindowHeight = m_nAntiAliasingDim * dlg.m_pic_height;
+		m_WindowWidth = m_nAntiAliasingDim * dlg.m_pic_width;
 
 		//// Convert a TCHAR string to a LPCSTR
 		// required for data type conversions
@@ -2699,8 +2752,8 @@ void CCGWorkView::OnUpdateRenderTofile(CCmdUI *pCmdUI)
 void CCGWorkView::OnRenderToscreen()
 {
 	m_render_target = ID_RENDER_TOSCREEN;
-	m_WindowHeight = m_OriginalWindowHeight;
-	m_WindowWidth = m_OriginalWindowWidth;
+	m_WindowHeight = m_nAntiAliasingDim * m_OriginalWindowHeight;
+	m_WindowWidth = m_nAntiAliasingDim * m_OriginalWindowWidth;
 	Invalidate();
 }
 
@@ -2964,4 +3017,222 @@ void CCGWorkView::OnUpdateLight1povZ(CCmdUI *pCmdUI)
 void CCGWorkView::OnUpdateLight1povNegZ(CCmdUI *pCmdUI)
 {
 	pCmdUI->SetCheck(m_nLightView == ID_LIGHT1POV_NEG_Z);
+}
+
+
+void CCGWorkView::OnUpdateAntialiasingOff(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(m_nAntiAliasing == ID_ANTIALIASING_OFF);
+}
+
+void CCGWorkView::OnAntialiasingOff()
+{
+	m_nAntiAliasing = ID_ANTIALIASING_OFF;
+	m_nAntiAliasingDim = 1;
+
+	GetWindowRect(rect);
+
+	m_WindowWidth = m_nAntiAliasingDim * (rect->right - rect->left - 4); // 4 is a shift from the edges of the window
+	m_WindowHeight = m_nAntiAliasingDim * (rect->bottom - rect->top - 4);
+
+	Invalidate();
+}
+
+
+void CCGWorkView::OnUpdateAntialiasingSinc3x3(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(m_nAntiAliasing == ID_ANTIALIASING_SINC3X3);
+}
+
+void CCGWorkView::OnAntialiasingSinc3x3()
+{
+	m_nAntiAliasing = ID_ANTIALIASING_SINC3X3;
+	m_nAntiAliasingDim = ANTI_ALIASING_DIM_3X3;
+	double normalize = 1.0 / 24;
+	m_AntiAliasingMask[0][0] = normalize * 2; m_AntiAliasingMask[0][1] = normalize * 3; m_AntiAliasingMask[0][2] = normalize * 2;
+	m_AntiAliasingMask[1][0] = normalize * 3; m_AntiAliasingMask[1][1] = normalize * 4; m_AntiAliasingMask[1][2] = normalize * 3;
+	m_AntiAliasingMask[2][0] = normalize * 2; m_AntiAliasingMask[2][1] = normalize * 3; m_AntiAliasingMask[2][2] = normalize * 2;
+
+	GetWindowRect(rect);
+
+	m_WindowWidth = m_nAntiAliasingDim * (rect->right - rect->left - 4); // 4 is a shift from the edges of the window
+	m_WindowHeight = m_nAntiAliasingDim * (rect->bottom - rect->top - 4);
+
+	Invalidate();
+}
+
+void CCGWorkView::OnUpdateAntialiasingSinc5x5(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(m_nAntiAliasing == ID_ANTIALIASING_SINC5X5);
+}
+
+
+void CCGWorkView::OnAntialiasingSinc5x5()
+{
+	m_nAntiAliasing = ID_ANTIALIASING_SINC5X5;
+	m_nAntiAliasingDim = ANTI_ALIASING_DIM_5X5;
+	double normalize = 1.0 / 33;
+	m_AntiAliasingMask[0][0] = normalize * -2; m_AntiAliasingMask[0][1] = normalize * -1; m_AntiAliasingMask[0][2] = normalize * 0; m_AntiAliasingMask[0][3] = normalize * -1; m_AntiAliasingMask[0][4] = normalize * -2;
+	m_AntiAliasingMask[1][0] = normalize * -1; m_AntiAliasingMask[1][1] = normalize * 4;  m_AntiAliasingMask[1][2] = normalize * 6; m_AntiAliasingMask[1][3] = normalize * 4;  m_AntiAliasingMask[1][4] = normalize * -1;
+	m_AntiAliasingMask[2][0] = normalize * 0;  m_AntiAliasingMask[2][1] = normalize * 6;  m_AntiAliasingMask[2][2] = normalize * 9; m_AntiAliasingMask[2][3] = normalize * 6;  m_AntiAliasingMask[2][4] = normalize * 0;
+	m_AntiAliasingMask[3][0] = normalize * -1; m_AntiAliasingMask[3][1] = normalize * 4;  m_AntiAliasingMask[3][2] = normalize * 6; m_AntiAliasingMask[3][3] = normalize * 4;  m_AntiAliasingMask[3][4] = normalize * -1;
+	m_AntiAliasingMask[4][0] = normalize * -2; m_AntiAliasingMask[4][1] = normalize * -1; m_AntiAliasingMask[4][2] = normalize * 0; m_AntiAliasingMask[4][3] = normalize * -1; m_AntiAliasingMask[4][4] = normalize * -2;
+
+	GetWindowRect(rect);
+
+	m_WindowWidth = m_nAntiAliasingDim * (rect->right - rect->left - 4); // 4 is a shift from the edges of the window
+	m_WindowHeight = m_nAntiAliasingDim * (rect->bottom - rect->top - 4);
+
+	Invalidate();
+}
+
+
+void CCGWorkView::OnUpdateAntialiasingBox3x3(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(m_nAntiAliasing == ID_ANTIALIASING_BOX3X3);
+}
+
+
+void CCGWorkView::OnAntialiasingBox3x3()
+{
+	m_nAntiAliasing = ID_ANTIALIASING_BOX3X3;
+	m_nAntiAliasingDim = ANTI_ALIASING_DIM_3X3;
+	double normalize = 1.0 / 9;
+	m_AntiAliasingMask[0][0] = normalize * 1; m_AntiAliasingMask[0][1] = normalize * 1; m_AntiAliasingMask[0][2] = normalize * 1;
+	m_AntiAliasingMask[1][0] = normalize * 1; m_AntiAliasingMask[1][1] = normalize * 1; m_AntiAliasingMask[1][2] = normalize * 1;
+	m_AntiAliasingMask[2][0] = normalize * 1; m_AntiAliasingMask[2][1] = normalize * 1; m_AntiAliasingMask[2][2] = normalize * 1;
+
+	GetWindowRect(rect);
+
+	m_WindowWidth = m_nAntiAliasingDim * (rect->right - rect->left - 4); // 4 is a shift from the edges of the window
+	m_WindowHeight = m_nAntiAliasingDim * (rect->bottom - rect->top - 4);
+
+	Invalidate();
+}
+
+
+void CCGWorkView::OnUpdateAntialiasingBox5x5(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(m_nAntiAliasing == ID_ANTIALIASING_BOX5X5);
+}
+
+
+void CCGWorkView::OnAntialiasingBox5x5()
+{
+	m_nAntiAliasing = ID_ANTIALIASING_BOX5X5;
+	m_nAntiAliasingDim = ANTI_ALIASING_DIM_5X5;
+	double normalize = 1.0 / 25;
+	m_AntiAliasingMask[0][0] = normalize * 1; m_AntiAliasingMask[0][1] = normalize * 1; m_AntiAliasingMask[0][2] = normalize * 1; m_AntiAliasingMask[0][3] = normalize * 1; m_AntiAliasingMask[0][4] = normalize * 1;
+	m_AntiAliasingMask[1][0] = normalize * 1; m_AntiAliasingMask[1][1] = normalize * 1; m_AntiAliasingMask[1][2] = normalize * 1; m_AntiAliasingMask[1][3] = normalize * 1; m_AntiAliasingMask[1][4] = normalize * 1;
+	m_AntiAliasingMask[2][0] = normalize * 1; m_AntiAliasingMask[2][1] = normalize * 1; m_AntiAliasingMask[2][2] = normalize * 1; m_AntiAliasingMask[2][3] = normalize * 1; m_AntiAliasingMask[2][4] = normalize * 1;
+	m_AntiAliasingMask[3][0] = normalize * 1; m_AntiAliasingMask[3][1] = normalize * 1; m_AntiAliasingMask[3][2] = normalize * 1; m_AntiAliasingMask[3][3] = normalize * 1; m_AntiAliasingMask[3][4] = normalize * 1;
+	m_AntiAliasingMask[4][0] = normalize * 1; m_AntiAliasingMask[4][1] = normalize * 1; m_AntiAliasingMask[4][2] = normalize * 1; m_AntiAliasingMask[4][3] = normalize * 1; m_AntiAliasingMask[4][4] = normalize * 1;
+
+	GetWindowRect(rect);
+
+	m_WindowWidth = m_nAntiAliasingDim * (rect->right - rect->left - 4); // 4 is a shift from the edges of the window
+	m_WindowHeight = m_nAntiAliasingDim * (rect->bottom - rect->top - 4);
+
+	Invalidate();
+}
+
+
+void CCGWorkView::OnUpdateAntialiasingTriangle3x3(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(m_nAntiAliasing == ID_ANTIALIASING_TRIANGLE3X3);
+}
+
+
+void CCGWorkView::OnAntialiasingTriangle3x3()
+{
+	m_nAntiAliasing = ID_ANTIALIASING_TRIANGLE3X3;
+	m_nAntiAliasingDim = ANTI_ALIASING_DIM_3X3;
+	double normalize = 1.0 / 16;
+	m_AntiAliasingMask[0][0] = normalize * 1; m_AntiAliasingMask[0][1] = normalize * 2; m_AntiAliasingMask[0][2] = normalize * 1;
+	m_AntiAliasingMask[1][0] = normalize * 2; m_AntiAliasingMask[1][1] = normalize * 4; m_AntiAliasingMask[1][2] = normalize * 2;
+	m_AntiAliasingMask[2][0] = normalize * 1; m_AntiAliasingMask[2][1] = normalize * 2; m_AntiAliasingMask[2][2] = normalize * 1;
+
+	GetWindowRect(rect);
+
+	m_WindowWidth = m_nAntiAliasingDim * (rect->right - rect->left - 4); // 4 is a shift from the edges of the window
+	m_WindowHeight = m_nAntiAliasingDim * (rect->bottom - rect->top - 4);
+
+	Invalidate();
+}
+
+
+void CCGWorkView::OnUpdateAntialiasingTriangle5x5(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(m_nAntiAliasing == ID_ANTIALIASING_TRIANGLE5X5);
+}
+
+
+void CCGWorkView::OnAntialiasingTriangle5x5()
+{
+	m_nAntiAliasing = ID_ANTIALIASING_TRIANGLE5X5;
+	m_nAntiAliasingDim = ANTI_ALIASING_DIM_5X5;
+	double normalize = 1.0 / 81;
+	m_AntiAliasingMask[0][0] = normalize * 1; m_AntiAliasingMask[0][1] = normalize * 2; m_AntiAliasingMask[0][2] = normalize * 3; m_AntiAliasingMask[0][3] = normalize * 2; m_AntiAliasingMask[0][4] = normalize * 1;
+	m_AntiAliasingMask[1][0] = normalize * 2; m_AntiAliasingMask[1][1] = normalize * 4; m_AntiAliasingMask[1][2] = normalize * 6; m_AntiAliasingMask[1][3] = normalize * 4; m_AntiAliasingMask[1][4] = normalize * 2;
+	m_AntiAliasingMask[2][0] = normalize * 3; m_AntiAliasingMask[2][1] = normalize * 6; m_AntiAliasingMask[2][2] = normalize * 9; m_AntiAliasingMask[2][3] = normalize * 6; m_AntiAliasingMask[2][4] = normalize * 3;
+	m_AntiAliasingMask[3][0] = normalize * 2; m_AntiAliasingMask[3][1] = normalize * 4; m_AntiAliasingMask[3][2] = normalize * 6; m_AntiAliasingMask[3][3] = normalize * 4; m_AntiAliasingMask[3][4] = normalize * 2;
+	m_AntiAliasingMask[4][0] = normalize * 1; m_AntiAliasingMask[4][1] = normalize * 2; m_AntiAliasingMask[4][2] = normalize * 3; m_AntiAliasingMask[4][3] = normalize * 2; m_AntiAliasingMask[4][4] = normalize * 3;
+	
+	GetWindowRect(rect);
+
+	m_WindowWidth = m_nAntiAliasingDim * (rect->right - rect->left - 4); // 4 is a shift from the edges of the window
+	m_WindowHeight = m_nAntiAliasingDim * (rect->bottom - rect->top - 4);
+
+	Invalidate();
+}
+
+
+void CCGWorkView::OnUpdateAntialiasingGaussian3x3(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(m_nAntiAliasing == ID_ANTIALIASING_GAUSSIAN3X3);
+}
+
+
+void CCGWorkView::OnAntialiasingGaussian3x3()
+{
+	m_nAntiAliasing = ID_ANTIALIASING_GAUSSIAN3X3;
+	m_nAntiAliasingDim = ANTI_ALIASING_DIM_3X3;
+	double normalize = 1.0 / 17;
+	m_AntiAliasingMask[0][0] = normalize * 1; m_AntiAliasingMask[0][1] = normalize * 2; m_AntiAliasingMask[0][2] = normalize * 1;
+	m_AntiAliasingMask[1][0] = normalize * 2; m_AntiAliasingMask[1][1] = normalize * 5; m_AntiAliasingMask[1][2] = normalize * 2;
+	m_AntiAliasingMask[2][0] = normalize * 1; m_AntiAliasingMask[2][1] = normalize * 2; m_AntiAliasingMask[2][2] = normalize * 1;
+
+	GetWindowRect(rect);
+
+	m_WindowWidth = m_nAntiAliasingDim * (rect->right - rect->left - 4); // 4 is a shift from the edges of the window
+	m_WindowHeight = m_nAntiAliasingDim * (rect->bottom - rect->top - 4);
+
+	Invalidate();
+}
+
+
+void CCGWorkView::OnUpdateAntialiasingGaussian5x5(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(m_nAntiAliasing == ID_ANTIALIASING_GAUSSIAN5X5);
+}
+
+
+void CCGWorkView::OnAntialiasingGaussian5x5()
+{
+	m_nAntiAliasing = ID_ANTIALIASING_GAUSSIAN5X5;
+	m_nAntiAliasingDim = ANTI_ALIASING_DIM_5X5;
+	double normalize = 1.0 / 50;
+	m_AntiAliasingMask[0][0] = normalize * 1; m_AntiAliasingMask[0][1] = normalize * 1; m_AntiAliasingMask[0][2] = normalize * 1;  m_AntiAliasingMask[0][3] = normalize * 1; m_AntiAliasingMask[0][4] = normalize * 1;
+	m_AntiAliasingMask[1][0] = normalize * 1; m_AntiAliasingMask[1][1] = normalize * 2; m_AntiAliasingMask[1][2] = normalize * 4;  m_AntiAliasingMask[1][3] = normalize * 2; m_AntiAliasingMask[1][4] = normalize * 1;
+	m_AntiAliasingMask[2][0] = normalize * 1; m_AntiAliasingMask[2][1] = normalize * 4; m_AntiAliasingMask[2][2] = normalize * 10; m_AntiAliasingMask[2][3] = normalize * 4; m_AntiAliasingMask[2][4] = normalize * 1;
+	m_AntiAliasingMask[3][0] = normalize * 1; m_AntiAliasingMask[3][1] = normalize * 2; m_AntiAliasingMask[3][2] = normalize * 4;  m_AntiAliasingMask[3][3] = normalize * 2; m_AntiAliasingMask[3][4] = normalize * 1;
+	m_AntiAliasingMask[4][0] = normalize * 1; m_AntiAliasingMask[4][1] = normalize * 1; m_AntiAliasingMask[4][2] = normalize * 1;  m_AntiAliasingMask[4][3] = normalize * 1; m_AntiAliasingMask[4][4] = normalize * 1;
+
+
+	GetWindowRect(rect);
+
+	m_WindowWidth = m_nAntiAliasingDim * (rect->right - rect->left - 4); // 4 is a shift from the edges of the window
+	m_WindowHeight = m_nAntiAliasingDim * (rect->bottom - rect->top - 4);
+
+	Invalidate();
 }
