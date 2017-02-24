@@ -67,100 +67,109 @@ END
 // Menu
 //
 
-IDR_MAINFRAME MENU
+IDR_MAINFRAME MENUEX
 BEGIN
-    POPUP "&File"
+    POPUP "&File",                          65535,MFT_STRING,MFS_ENABLED
     BEGIN
-        MENUITEM "&Load",                       ID_FILE_LOAD
-        MENUITEM "E&xit",                       ID_APP_EXIT
+        MENUITEM "&Load",                       ID_FILE_LOAD,MFT_STRING,MFS_ENABLED
+        MENUITEM "E&xit",                       ID_APP_EXIT,MFT_STRING,MFS_ENABLED
     END
-    POPUP "&View"
+    POPUP "&View",                          65535,MFT_STRING,MFS_ENABLED
     BEGIN
-        MENUITEM "&Toolbar",                    ID_VIEW_TOOLBAR
-        MENUITEM "&Status Bar",                 ID_VIEW_STATUS_BAR
-        MENUITEM SEPARATOR
-        MENUITEM "&Orthographic",               ID_VIEW_ORTHOGRAPHIC
-        MENUITEM "&Perspective",                ID_VIEW_PERSPECTIVE
-        MENUITEM "Wireframe",                   ID_VIEW_WIREFRAME
-        MENUITEM "Solid",                       ID_VIEW_SOLID
-        MENUITEM "Z-Buffer",                    ID_VIEW_Z
+        MENUITEM "&Toolbar",                    ID_VIEW_TOOLBAR,MFT_STRING,MFS_ENABLED
+        MENUITEM "&Status Bar",                 ID_VIEW_STATUS_BAR,MFT_STRING,MFS_ENABLED
+        MENUITEM MFT_SEPARATOR
+        MENUITEM "&Orthographic",               ID_VIEW_ORTHOGRAPHIC,MFT_STRING,MFS_ENABLED
+        MENUITEM "&Perspective",                ID_VIEW_PERSPECTIVE,MFT_STRING,MFS_ENABLED
+        MENUITEM "Wireframe",                   ID_VIEW_WIREFRAME,MFT_STRING,MFS_ENABLED
+        MENUITEM "Solid",                       ID_VIEW_SOLID,MFT_STRING,MFS_ENABLED
+        MENUITEM "Z-Buffer",                    ID_VIEW_Z,MFT_STRING,MFS_ENABLED
     END
-    POPUP "A&ction"
+    POPUP "A&ction",                        65535,MFT_STRING,MFS_ENABLED
     BEGIN
-        MENUITEM "&Rotate",                     ID_ACTION_ROTATE
-        MENUITEM "&Translate",                  ID_ACTION_TRANSLATE
-        MENUITEM "&Scale",                      ID_ACTION_SCALE
-        MENUITEM "Reset view",                  ID_ACTION_RESETVIEW
-        MENUITEM "Clear All",                   ID_ACTION_CLEARALL
+        MENUITEM "&Rotate",                     ID_ACTION_ROTATE,MFT_STRING,MFS_ENABLED
+        MENUITEM "&Translate",                  ID_ACTION_TRANSLATE,MFT_STRING,MFS_ENABLED
+        MENUITEM "&Scale",                      ID_ACTION_SCALE,MFT_STRING,MFS_ENABLED
+        MENUITEM "Reset view",                  ID_ACTION_RESETVIEW,MFT_STRING,MFS_ENABLED
+        MENUITEM "Clear All",                   ID_ACTION_CLEARALL,MFT_STRING,MFS_ENABLED
     END
-    POPUP "A&xis"
+    POPUP "A&xis",                          65535,MFT_STRING,MFS_ENABLED
     BEGIN
-        MENUITEM "&X",                          ID_AXIS_X
-        MENUITEM "&Y",                          ID_AXIS_Y
-        MENUITEM "&Z",                          ID_AXIS_Z
-        MENUITEM "XY",                          ID_AXIS_XY
+        MENUITEM "&X",                          ID_AXIS_X,MFT_STRING,MFS_ENABLED
+        MENUITEM "&Y",                          ID_AXIS_Y,MFT_STRING,MFS_ENABLED
+        MENUITEM "&Z",                          ID_AXIS_Z,MFT_STRING,MFS_ENABLED
+        MENUITEM "XY",                          ID_AXIS_XY,MFT_STRING,MFS_ENABLED
     END
-    POPUP "&Options"
+    POPUP "&Options",                       65535,MFT_STRING,MFS_ENABLED
     BEGIN
-        MENUITEM "Perspective Control...",      ID_OPTIONS_PERSPECTIVECONTROL
-        MENUITEM "Mouse Sensitivity...",        ID_OPTIONS_MOUSESENSITIVITY
-        MENUITEM "Other Options...",            ID_OPTIONS_OTHEROPTIONS
-        MENUITEM "Back Face Culling",           ID_OPTIONS_BACKFACECULLING
-        MENUITEM "Normal Inverse",              ID_OPTIONS_NORMALINVERSE
-        MENUITEM "Override Given Normals",      ID_OPTIONS_OVERRIDEGIVENNORMAL
-        MENUITEM "Add Silhouette",              ID_OPTIONS_ADDSILHOUETTE
+        MENUITEM "Perspective Control...",      ID_OPTIONS_PERSPECTIVECONTROL,MFT_STRING,MFS_ENABLED
+        MENUITEM "Mouse Sensitivity...",        ID_OPTIONS_MOUSESENSITIVITY,MFT_STRING,MFS_ENABLED
+        MENUITEM "Other Options...",            ID_OPTIONS_OTHEROPTIONS,MFT_STRING,MFS_ENABLED
+        MENUITEM "Back Face Culling",           ID_OPTIONS_BACKFACECULLING,MFT_STRING,MFS_ENABLED
+        MENUITEM "Normal Inverse",              ID_OPTIONS_NORMALINVERSE,MFT_STRING,MFS_ENABLED
+        MENUITEM "Override Given Normals",      ID_OPTIONS_OVERRIDEGIVENNORMAL,MFT_STRING,MFS_ENABLED
+        MENUITEM "Add Silhouette",              ID_OPTIONS_ADDSILHOUETTE,MFT_STRING,MFS_ENABLED
         MENUITEM "Shadows",                     ID_OPTIONS_SHADOWS
     END
-    POPUP "&Light"
+    POPUP "&Light",                         65535,MFT_STRING,MFS_ENABLED
     BEGIN
-        POPUP "&Shading"
+        POPUP "&Shading",                       65535,MFT_STRING,MFS_ENABLED
         BEGIN
-            MENUITEM "&Flat",                       ID_LIGHT_SHADING_FLAT
-            MENUITEM "&Gouraud",                    ID_LIGHT_SHADING_GOURAUD
-            MENUITEM "Phong",                       ID_LIGHT_SHADING_PHONg
+            MENUITEM "&Flat",                       ID_LIGHT_SHADING_FLAT,MFT_STRING,MFS_ENABLED
+            MENUITEM "&Gouraud",                    ID_LIGHT_SHADING_GOURAUD,MFT_STRING,MFS_ENABLED
+            MENUITEM "Phong",                       ID_LIGHT_SHADING_PHONg,MFT_STRING,MFS_ENABLED
         END
-        MENUITEM "&Parameters...",              ID_LIGHT_CONSTANTS
-        MENUITEM SEPARATOR
-        POPUP "Light 1 POV"
+        MENUITEM "&Parameters...",              ID_LIGHT_CONSTANTS,MFT_STRING,MFS_ENABLED
+        MENUITEM MFT_SEPARATOR
+        POPUP "Light 1 POV",                    65535,MFT_STRING,MFS_ENABLED
         BEGIN
-            MENUITEM "X",                           ID_LIGHT1POV_X
-            MENUITEM "NEG_X",                       ID_LIGHT1POV_NEG_X
-            MENUITEM "Y",                           ID_LIGHT1POV_Y
-            MENUITEM "NEG_Y",                       ID_LIGHT1POV_NEG_Y
-            MENUITEM "Z",                           ID_LIGHT1POV_Z
-            MENUITEM "NEG_Z",                       ID_LIGHT1POV_NEG_Z
+            MENUITEM "X",                           ID_LIGHT1POV_X,MFT_STRING,MFS_ENABLED
+            MENUITEM "NEG_X",                       ID_LIGHT1POV_NEG_X,MFT_STRING,MFS_ENABLED
+            MENUITEM "Y",                           ID_LIGHT1POV_Y,MFT_STRING,MFS_ENABLED
+            MENUITEM "NEG_Y",                       ID_LIGHT1POV_NEG_Y,MFT_STRING,MFS_ENABLED
+            MENUITEM "Z",                           ID_LIGHT1POV_Z,MFT_STRING,MFS_ENABLED
+            MENUITEM "NEG_Z",                       ID_LIGHT1POV_NEG_Z,MFT_STRING,MFS_ENABLED
         END
-        MENUITEM "Light 1 View",                ID_LIGHT_LIGHT1VIEW
+        MENUITEM "Light 1 View",                ID_LIGHT_LIGHT1VIEW,MFT_STRING,MFS_ENABLED
     END
-    POPUP "Normal"
+    POPUP "Normal",                         65535,MFT_STRING,MFS_ENABLED
     BEGIN
-        POPUP "Polygon"
+        POPUP "Polygon",                        65535,MFT_STRING,MFS_ENABLED
         BEGIN
-            MENUITEM "Given",                       ID_POLYGON_GIVEN
-            MENUITEM "Calculated",                  ID_POLYGON_CALCULATED
+            MENUITEM "Given",                       ID_POLYGON_GIVEN,MFT_STRING,MFS_ENABLED
+            MENUITEM "Calculated",                  ID_POLYGON_CALCULATED,MFT_STRING,MFS_ENABLED
         END
-        POPUP "Vertex"
+        POPUP "Vertex",                         65535,MFT_STRING,MFS_ENABLED
         BEGIN
-            MENUITEM "Given",                       ID_VERTEX_GIVEN
-            MENUITEM "Calculated",                  ID_VERTEX_CALCULATED
+            MENUITEM "Given",                       ID_VERTEX_GIVEN,MFT_STRING,MFS_ENABLED
+            MENUITEM "Calculated",                  ID_VERTEX_CALCULATED,MFT_STRING,MFS_ENABLED
         END
     END
-    POPUP "Render"
+    POPUP "Render",                         65535,MFT_STRING,MFS_ENABLED
     BEGIN
-        MENUITEM "On Screen",                   ID_RENDER_TOSCREEN
-        MENUITEM "To File",                     ID_RENDER_TOFILE
+        MENUITEM "On Screen",                   ID_RENDER_TOSCREEN,MFT_STRING,MFS_ENABLED
+        MENUITEM "To File",                     ID_RENDER_TOFILE,MFT_STRING,MFS_ENABLED
     END
-    POPUP "&Help"
+    POPUP "&Help",                          65535,MFT_STRING,MFS_ENABLED
     BEGIN
-        MENUITEM "&About CGWork...",            ID_APP_ABOUT
+        MENUITEM "&About CGWork...",            ID_APP_ABOUT,MFT_STRING,MFS_ENABLED
     END
-    POPUP "Background"
+    POPUP "Background",                     65535,MFT_STRING,MFS_ENABLED
     BEGIN
-        MENUITEM "Set Image...",                ID_BACKGROUND_SETIMAGE
-        MENUITEM "Active",                      ID_BACKGROUND_ACTIVE
-        MENUITEM SEPARATOR
-        MENUITEM "Repeat",                      ID_BACKGROUND_REPEAT
-        MENUITEM "Stretch",                     ID_BACKGROUND_STRETCH
+        MENUITEM "Set Image...",                ID_BACKGROUND_SETIMAGE,MFT_STRING,MFS_ENABLED
+        MENUITEM "Active",                      ID_BACKGROUND_ACTIVE,MFT_STRING,MFS_ENABLED
+        MENUITEM MFT_SEPARATOR
+        MENUITEM "Repeat",                      ID_BACKGROUND_REPEAT,MFT_STRING,MFS_ENABLED
+        MENUITEM "Stretch",                     ID_BACKGROUND_STRETCH,MFT_STRING,MFS_ENABLED
+    END
+    POPUP "Texture",                        65535,MFT_STRING,MFS_ENABLED
+    BEGIN
+        POPUP "Marble",                         65535,MFT_STRING | MFT_RIGHTJUSTIFY,MFS_ENABLED
+        BEGIN
+            MENUITEM "picture",                     ID_MARBLE_PICTURE,MFT_STRING,MFS_ENABLED
+            MENUITEM "scale",                       ID_MARBLE_SCALE,MFT_STRING,MFS_ENABLED
+        END
+        MENUITEM "Wood",                        ID_TEXTURE_WOOD,MFT_STRING,MFS_ENABLED
     END
 END
 
