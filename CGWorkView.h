@@ -60,6 +60,9 @@ private:
 	CString m_strItdFileName;		// file name of IRIT data
 
 	int m_nLightShading;			// shading: Flat, Gouraud.
+	int m_nAntiAliasing;			// anti aliasing type.
+	int m_nAntiAliasingDim;			// anti aliasing dimenstion
+	double m_AntiAliasingMask[5][5];   // anti aliasing mask;
 
 	double m_lMaterialAmbient;		// The Ambient in the scene
 	double m_lMaterialDiffuse;		// The Diffuse in the scene
@@ -94,6 +97,7 @@ private:
 	void set_light_pos(mat4 view_space_trans);
 	double LinePointDepth(vec4 &p1, vec4 &p2, double x, double y);
 	double LinePointRatio(vec4 &p1, vec4 &p2, double x, double y);
+	void CCGWorkView::AntiAliasing(COLORREF *out_arr, COLORREF *int_arr);
 
 	COLORREF ApplyLight(COLORREF in_color, vec4 normal, vec4 pos, mat4 cur_inv_transform);
 	COLORREF m_color_wireframe;
@@ -285,6 +289,24 @@ public:
 	afx_msg void OnUpdateLight1povNegY(CCmdUI *pCmdUI);
 	afx_msg void OnUpdateLight1povZ(CCmdUI *pCmdUI);
 	afx_msg void OnUpdateLight1povNegZ(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateAntialiasingOff(CCmdUI *pCmdUI);
+	afx_msg void OnAntialiasingOff();
+	afx_msg void OnAntialiasingSinc3x3();
+	afx_msg void OnUpdateAntialiasingSinc3x3(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateAntialiasingSinc5x5(CCmdUI *pCmdUI);
+	afx_msg void OnAntialiasingSinc5x5();
+	afx_msg void OnUpdateAntialiasingBox3x3(CCmdUI *pCmdUI);
+	afx_msg void OnAntialiasingBox3x3();
+	afx_msg void OnUpdateAntialiasingBox5x5(CCmdUI *pCmdUI);
+	afx_msg void OnAntialiasingBox5x5();
+	afx_msg void OnUpdateAntialiasingTriangle3x3(CCmdUI *pCmdUI);
+	afx_msg void OnAntialiasingTriangle3x3();
+	afx_msg void OnUpdateAntialiasingTriangle5x5(CCmdUI *pCmdUI);
+	afx_msg void OnAntialiasingTriangle5x5();
+	afx_msg void OnUpdateAntialiasingGaussian3x3(CCmdUI *pCmdUI);
+	afx_msg void OnAntialiasingGaussian3x3();
+	afx_msg void OnUpdateAntialiasingGaussian5x5(CCmdUI *pCmdUI);
+	afx_msg void OnAntialiasingGaussian5x5();
 };
 
 #ifndef _DEBUG  // debug version in CGWorkView.cpp
