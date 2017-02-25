@@ -275,7 +275,7 @@ CCGWorkView::CCGWorkView()
 	m_background_type = ID_BACKGROUND_REPEAT;
 	m_light_view = false;
 	m_nLightView = ID_LIGHT1POV_Z;
-	m_shadow_err = 5;
+	m_shadow_err = 15;
 	m_shadow_size = 1000;
 
 	//init the coesffiecents of the lights
@@ -2098,7 +2098,7 @@ void CCGWorkView::set_light_pos(mat4 view_space_trans){
 	}
 }
 
-void CCGWorkView::RenderLightScene(LightParams &light, vec4 model_center){
+void CCGWorkView::RenderLightScene(LightParams &light, vec4 model_center, vec4 global_center){
 	if (!m_shadows) return;
 
 	int prev_m_nView = m_nView;
@@ -2123,9 +2123,22 @@ void CCGWorkView::RenderLightScene(LightParams &light, vec4 model_center){
 		light_dir_z = light_dir_z / sqrt(pow(light_dir_z.x, 2) + pow(light_dir_z.y, 2) + pow(light_dir_z.z, 2));
 		light_dir_z.p = 1;
 
-		light_dir_x.x = -(light_dir_z.y + light_dir_z.z) / light_dir_z.x;
-		light_dir_x.y = 1;
-		light_dir_x.z = 1;
+		if (light_dir_z.x != 0){
+			light_dir_x.x = -(light_dir_z.y + light_dir_z.z) / light_dir_z.x;
+			light_dir_x.y = 1;
+			light_dir_x.z = 1;
+		}
+		else if (light_dir_z.y != 0) {
+			light_dir_x.x = 1;
+			light_dir_x.y = -(light_dir_z.x + light_dir_z.z) / light_dir_z.y;
+			light_dir_x.z = 1;
+		}
+		else {
+			light_dir_x.x = 1;
+			light_dir_x.y = 1;
+			light_dir_x.z = -(light_dir_z.y + light_dir_z.x) / light_dir_z.z;
+		}
+
 		light_dir_x = light_dir_x / sqrt(pow(light_dir_x.x, 2) + pow(light_dir_x.y, 2) + pow(light_dir_x.z, 2));
 		light_dir_x.p = 1;
 
@@ -2144,16 +2157,29 @@ void CCGWorkView::RenderLightScene(LightParams &light, vec4 model_center){
 	else if (light.type == LIGHT_TYPE_DIRECTIONAL){
 		m_nView = ID_VIEW_ORTHOGRAPHIC;
 
-		light_pos.x = m_lights[0].dirX;
-		light_pos.y = m_lights[0].dirY;
-		light_pos.z = m_lights[0].dirZ;
+		light_dir_z.x = m_lights[0].dirX;
+		light_dir_z.y = m_lights[0].dirY;
+		light_dir_z.z = m_lights[0].dirZ;
 
 		light_dir_z = light_dir_z / sqrt(pow(light_dir_z.x, 2) + pow(light_dir_z.y, 2) + pow(light_dir_z.z, 2));
 		light_dir_z.p = 1;
 
-		light_dir_x.x = -(light_dir_z.y + light_dir_z.z) / light_dir_z.x;
-		light_dir_x.y = 1;
-		light_dir_x.z = 1;
+		if (light_dir_z.x != 0){
+			light_dir_x.x = -(light_dir_z.y + light_dir_z.z) / light_dir_z.x;
+			light_dir_x.y = 1;
+			light_dir_x.z = 1;
+		}
+		else if (light_dir_z.y != 0) {
+			light_dir_x.x = 1;
+			light_dir_x.y = -(light_dir_z.x + light_dir_z.z) / light_dir_z.y;
+			light_dir_x.z = 1;
+		}
+		else {
+			light_dir_x.x = 1;
+			light_dir_x.y = 1;
+			light_dir_x.z = -(light_dir_z.y + light_dir_z.x) / light_dir_z.z;
+		}
+
 		light_dir_x = light_dir_x / sqrt(pow(light_dir_x.x, 2) + pow(light_dir_x.y, 2) + pow(light_dir_x.z, 2));
 		light_dir_x.p = 1;
 
@@ -2167,6 +2193,9 @@ void CCGWorkView::RenderLightScene(LightParams &light, vec4 model_center){
 		light_coord_system[3][3] = 1;
 		light_coord_system = transpose(light_coord_system);
 
+
+		global_center = global_center * light_coord_system;
+
 		traspose_to_center[0][0] = 1;
 		traspose_to_center[1][1] = 1;
 		traspose_to_center[2][2] = 1;
@@ -2175,7 +2204,7 @@ void CCGWorkView::RenderLightScene(LightParams &light, vec4 model_center){
 
 		traspose_to_center[3][3] = 1;
 
-		light.light_transform = light_coord_system * m_shadow_screen_space;
+		light.light_transform = light_coord_system * traspose_to_center * m_shadow_screen_space;
 	}
 
 	mat4 light_transform;
@@ -2289,8 +2318,10 @@ void CCGWorkView::RenderScene() {
 			vec4 light_dir_x, light_dir_y, light_dir_z;
 			vec4 light_pos;
 			
-			vec4 model_center = (0.5 * (models[m].max_vec + models[m].min_vec)) * models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans;
+			vec4 model_center;
 			if (m_lights[0].type == LIGHT_TYPE_POINT){
+				m_nView = ID_VIEW_PERSPECTIVE;
+				model_center = (0.5 * (models[m].max_vec + models[m].min_vec)) * models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans;
 
 				light_pos.x = m_lights[0].posX;
 				light_pos.y = m_lights[0].posY;
@@ -2300,9 +2331,22 @@ void CCGWorkView::RenderScene() {
 				light_dir_z = light_dir_z / sqrt(pow(light_dir_z.x, 2) + pow(light_dir_z.y, 2) + pow(light_dir_z.z, 2));
 				light_dir_z.p = 1;
 
-				light_dir_x.x = -(light_dir_z.y + light_dir_z.z) / light_dir_z.x;
-				light_dir_x.y = 1;
-				light_dir_x.z = 1;
+				if (light_dir_z.x != 0){
+					light_dir_x.x = -(light_dir_z.y + light_dir_z.z) / light_dir_z.x;
+					light_dir_x.y = 1;
+					light_dir_x.z = 1;
+				}
+				else if (light_dir_z.y != 0) {
+					light_dir_x.x = 1;
+					light_dir_x.y = -(light_dir_z.x + light_dir_z.z) / light_dir_z.y;
+					light_dir_x.z = 1;
+				}
+				else {
+					light_dir_x.x = 1;
+					light_dir_x.y = 1;
+					light_dir_x.z = -(light_dir_z.y + light_dir_z.x) / light_dir_z.z;
+				}
+
 				light_dir_x = light_dir_x / sqrt(pow(light_dir_x.x, 2) + pow(light_dir_x.y, 2) + pow(light_dir_x.z, 2));
 				light_dir_x.p = 1;
 
@@ -2320,20 +2364,32 @@ void CCGWorkView::RenderScene() {
 
 			}
 			else if (m_lights[0].type == LIGHT_TYPE_DIRECTIONAL){
-
-				light_pos = model_center;
+				m_nView = ID_VIEW_ORTHOGRAPHIC;
+				model_center = vec4(0, 0, 0, 1) * models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans;
 
 				light_dir_z.x = m_lights[0].dirX;
 				light_dir_z.y = m_lights[0].dirY;
 				light_dir_z.z = m_lights[0].dirZ;
-				light_dir_z = model_center - light_pos;
 
 				light_dir_z = light_dir_z / sqrt(pow(light_dir_z.x, 2) + pow(light_dir_z.y, 2) + pow(light_dir_z.z, 2));
 				light_dir_z.p = 1;
 
-				light_dir_x.x = -(light_dir_z.y + light_dir_z.z) / light_dir_z.x;
-				light_dir_x.y = 1;
-				light_dir_x.z = 1;
+				if (light_dir_z.x != 0){
+					light_dir_x.x = -(light_dir_z.y + light_dir_z.z) / light_dir_z.x;
+					light_dir_x.y = 1;
+					light_dir_x.z = 1;
+				}
+				else if (light_dir_z.y != 0) {
+					light_dir_x.x = 1;
+					light_dir_x.y = -(light_dir_z.x + light_dir_z.z) / light_dir_z.y;
+					light_dir_x.z = 1;
+				}
+				else {
+					light_dir_x.x = 1;
+					light_dir_x.y = 1;
+					light_dir_x.z = -(light_dir_z.y + light_dir_z.x) / light_dir_z.z;
+				}
+
 				light_dir_x = light_dir_x / sqrt(pow(light_dir_x.x, 2) + pow(light_dir_x.y, 2) + pow(light_dir_x.z, 2));
 				light_dir_x.p = 1;
 
@@ -2359,18 +2415,6 @@ void CCGWorkView::RenderScene() {
 				traspose_to_center[3][3] = 1;
 
 				cur_transform = models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans * light_coord_system * traspose_to_center * m_screen_space_scale * m_screen_space_translate;
-
-				model_center = (0.5 * (models[m].max_vec + models[m].min_vec)) * cur_transform;
-
-				traspose_to_center[0][0] = 1;
-				traspose_to_center[1][1] = 1;
-				traspose_to_center[2][2] = 1;
-
-				traspose_to_center[3] = -1 * model_center;
-
-				traspose_to_center[3][3] = 1;
-
-				cur_transform = cur_transform * traspose_to_center;
 			}
 		}
 
@@ -2378,9 +2422,10 @@ void CCGWorkView::RenderScene() {
 
 			// render scence from light POV for this model, assume if light is inside boundbox, model has no shadows
 			vec4 model_center = (0.5 * (models[m].max_vec + models[m].min_vec)) * models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans;
+			vec4 global_center = vec4(0, 0, 0, 1) * models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans;
 			for (int i = 0; i < MAX_LIGHT; i++){
 				if (m_lights[i].enabled)
-					RenderLightScene(m_lights[i], model_center);
+					RenderLightScene(m_lights[i], model_center, global_center);
 			}
 
 			if (!m_back_face_culling){
