@@ -9,7 +9,7 @@ class PrespectiveControlDialog : public CDialogEx
 
 public:
 	PrespectiveControlDialog(CWnd* pParent = NULL);   // standard constructor
-	PrespectiveControlDialog(double default_d, CWnd* pParent = NULL);   // standard constructor
+	PrespectiveControlDialog(double default_d, double default_alpha, CWnd* pParent = NULL);   // standard constructor
 	virtual ~PrespectiveControlDialog();
 
 // Dialog Data
@@ -21,4 +21,5 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	double d;
+	double m_prespective_alpha;
 };

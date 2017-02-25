@@ -46,6 +46,7 @@ extern IPFreeformConvStateStruct CGSkelFFCState;
 #define IN_RANGE(x, y) ((1 <= x) && (x < (m_WindowWidth - 1)) && (1 <= y) && (y < (m_WindowHeight - 1)))
 #define SCREEN_SPACE(x, y) (x + m_WindowWidth * (y))
 #define SCREEN_SPACE_ALIASING(x, y) (x + (m_WindowWidth / m_nAntiAliasingDim) * (y))
+#define SCREEN_SPACE_SHADOWMAP(x, y) (x + (m_shadow_size) * (y))
 #define BGR(x) RGB(GetBValue(x), GetGValue(x), GetRValue(x));
 #define SET_RGB(r,g,b) ((r)<<24|(g)<<16|(b)<<8|0)
 #define SET_RGBA(r,g,b,a) ((r)<<24|(g)<<16|(b)<<8|a)
@@ -239,6 +240,7 @@ CCGWorkView::CCGWorkView()
 	m_tarnsform[3][3] = 1;
 
 	m_presepctive_d = 1;
+	m_presepctive_alpha = 0.8 * m_presepctive_d;
 	m_pic_name = "Default Name.png";
 	m_pngHandle.SetFileName(m_pic_name.c_str());
 	m_marble.SetFileName("Marble.png");
@@ -273,7 +275,8 @@ CCGWorkView::CCGWorkView()
 	m_background_type = ID_BACKGROUND_REPEAT;
 	m_light_view = false;
 	m_nLightView = ID_LIGHT1POV_Z;
-	m_shadow_err = 1.0019;
+	m_shadow_err = 5;
+	m_shadow_size = 1000;
 
 	//init the coesffiecents of the lights
 	m_ambient_k = 0.3;
@@ -439,27 +442,38 @@ void CCGWorkView::OnDraw(CDC* pDC)
 	m_screen = (COLORREF*)calloc(m_WindowWidth * m_WindowHeight, sizeof(COLORREF));
 	z_buffer = (double*)calloc(m_WindowWidth * m_WindowHeight, sizeof(double));
 
-	// TODO give z buffers to all light sources
 
-	delete m_lights[0].z_array_xdir;
-	delete m_lights[0].z_array_neg_xdir;
-	delete m_lights[0].z_array_ydir;
-	delete m_lights[0].z_array_neg_ydir;
-	delete m_lights[0].z_array_zdir;
-	delete m_lights[0].z_array_neg_zdir;
-
-	m_lights[0].z_array_xdir = (double*)calloc(m_WindowWidth * m_WindowHeight, sizeof(double));
-	m_lights[0].z_array_neg_xdir = (double*)calloc(m_WindowWidth * m_WindowHeight, sizeof(double));
-	m_lights[0].z_array_ydir = (double*)calloc(m_WindowWidth * m_WindowHeight, sizeof(double));
-	m_lights[0].z_array_neg_ydir = (double*)calloc(m_WindowWidth * m_WindowHeight, sizeof(double));
-	m_lights[0].z_array_zdir = (double*)calloc(m_WindowWidth * m_WindowHeight, sizeof(double));
-	m_lights[0].z_array_neg_zdir = (double*)calloc(m_WindowWidth * m_WindowHeight, sizeof(double));
+	for (int l = 0; l < MAX_LIGHT; l++){
+		delete m_lights[l].z_array_xdir;
+		m_lights[l].z_array_xdir = (double*)calloc(m_shadow_size * m_shadow_size, sizeof(double));
+	}
 
 	mat4 screen_space_scale;
 	mat4 screen_space_translate;
-
-	// set the screen scaling transformation
+	
+	// shadow screen space transformations
+	// set the shadow screen scaling transformation
 	int min_axis = min(m_WindowHeight, m_WindowWidth);
+	screen_space_scale[0][0] = (double)m_shadow_size*0.8;
+	screen_space_scale[1][1] = (double)m_shadow_size*0.8;
+	screen_space_scale[2][2] = (double)m_shadow_size*0.8;
+	screen_space_scale[3][3] = 1;
+
+	// set the shadow screen translation transformation
+	screen_space_translate[0][0] = 1;
+	screen_space_translate[3][0] = 0.5 * m_shadow_size;
+
+	screen_space_translate[1][1] = 1;
+	screen_space_translate[3][1] = 0.5 * m_shadow_size;
+
+	screen_space_translate[2][2] = 1;
+
+	screen_space_translate[3][3] = 1;
+
+	m_shadow_screen_space = screen_space_scale * screen_space_translate;
+
+	// copmuter screent space transformations
+	// set the screen scaling transformation
 	screen_space_scale[0][0] = (double)min_axis*0.6;
 	screen_space_scale[1][1] = (double)min_axis*0.6;
 	screen_space_scale[2][2] = (double)min_axis*0.6;
@@ -504,8 +518,6 @@ void CCGWorkView::OnDraw(CDC* pDC)
 	// set the screens prespective transformation
 	mat4 reset;
 	m_prespective_trans = reset;
-
-	m_presepctive_alpha = 0.6 * m_presepctive_d;
 
 	m_prespective_trans[0][0] = 1;
 	m_prespective_trans[1][1] = 1;
@@ -1224,6 +1236,16 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 	dx = x2 - x1;
 	dy = y2 - y1;
 
+	double true_y1 = p1_x < p2_x ? p1_y : p2_y;
+	double true_y2 = p1_x < p2_x ? p2_y : p1_y;
+	double true_x1 = min(p1_x, p2_x);
+	double true_x2 = max(p1_x, p2_x);
+	double true_dy = true_y2 - true_y1;
+	double true_dx = true_x2 - true_x1;
+
+	double y_step = abs(true_dy) / dy;
+	double x_step = abs(true_dx) / dx;
+
 	double o_dx = origin_direction.x - origin.x;
 	double o_dy = origin_direction.y - origin.y;
 	double o_dz = origin_direction.z - origin.z;
@@ -1243,7 +1265,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 	south_er = 2 * dx;
 	south_east_er = 2 * dx + 2 * dy;
 
-	double z, p, true_x, true_y;
+	double z, p, true_x, true_y, true_z;
 	x_z_c_n_point xzcn_point;
 
 	std::vector<COLORREF> color_debug;
@@ -1256,10 +1278,16 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 	vec4 n = *p1_normal;
 
 	
-	true_y = y1;
-	true_x = x1;
+	true_y = true_y1;
+	true_x = true_x1;
 	z = LinePointDepth(p1, p2, x, y);
-	p = LinePointRatio(p1, p2, x, y);
+	true_z = LinePointDepth(p1, p2, true_x, true_y);
+	p = LinePointRatio(p1, p2, true_x, true_y);
+
+	//DEBUG
+	if (abs(x - static_cast<int>(true_x)) > 1)
+		bool shit = true;
+
 	if (m_nLightShading == ID_LIGHT_SHADING_PHONg)
 		n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
 
@@ -1276,6 +1304,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 		xzcn_point.z = z;
 		xzcn_point.true_x = true_x;
 		xzcn_point.true_y = true_y;
+		xzcn_point.true_z = true_z;
 		xzcn_point.p = p;
 		xzcn_point.c = c;
 		xzcn_point.n = n;
@@ -1287,7 +1316,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			if (draw)
 				arr[SCREEN_SPACE(x, y)] = c;
 
-			z_arr[SCREEN_SPACE(x, y)] = z;
+			z_arr[SCREEN_SPACE(x, y)] = true_z;
 			if (m_render_target == ID_RENDER_TOFILE){
 				m_pngHandle.SetValue(x, y, c);
 			}
@@ -1301,10 +1330,16 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			y = y + 1;
 
 
-			true_y = true_y + 1;
-			true_x = (dx / dy) * (true_y - y2) + x2;
+			true_y = true_y + y_step;
+			true_x = (true_dx / true_dy) * (true_y - true_y1) + true_x1;
+			true_z = LinePointDepth(p1, p2, true_x, true_y);
 			z = LinePointDepth(p1, p2, x, y);
-			p = LinePointRatio(p1, p2, x, y);
+			p = LinePointRatio(p1, p2, true_x, true_y);
+
+			//DEBUG
+			if (abs(x - static_cast<int>(true_x)) > 1)
+				bool shit = true;
+
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
@@ -1321,6 +1356,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				xzcn_point.p = p;
 				xzcn_point.true_x = true_x;
 				xzcn_point.true_y = true_y;
+				xzcn_point.true_z = true_z;
 				xzcn_point.c = c;
 				xzcn_point.n = n;
 				xzcn_point.origin = origin;
@@ -1331,7 +1367,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
 
-					z_arr[SCREEN_SPACE(x, y)] = z;
+					z_arr[SCREEN_SPACE(x, y)] = true_z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
 					}
@@ -1356,10 +1392,16 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				y = y + 1;
 			}
 			
-			true_y = true_y + 1;
-			true_x = (dx / dy) * (true_y - y2) + x2;
+			true_y = true_y + y_step;
+			true_x = (true_dx / true_dy) * (true_y - true_y1) + true_x1;
+			true_z = LinePointDepth(p1, p2, true_x, true_y);
 			z = LinePointDepth(p1, p2, x, y);
-			p = LinePointRatio(p1, p2, x, y);
+			p = LinePointRatio(p1, p2, true_x, true_y);
+
+			//DEBUG
+			if (abs(x - static_cast<int>(true_x)) > 1)
+				bool shit = true;
+
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
@@ -1375,6 +1417,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				xzcn_point.z = z;
 				xzcn_point.true_x = true_x;
 				xzcn_point.true_y = true_y;
+				xzcn_point.true_z = true_z;
 				xzcn_point.p = p;
 				xzcn_point.c = c;
 				xzcn_point.n = n;
@@ -1385,7 +1428,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				if (z < z_arr[SCREEN_SPACE(x, y)]){
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
-					z_arr[SCREEN_SPACE(x, y)] = z;
+					z_arr[SCREEN_SPACE(x, y)] = true_z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
 					}
@@ -1407,10 +1450,16 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				y = y + 1;
 			}
 			
-			true_x = true_x + 1;
-			true_y = (dy / dx) * (true_x - x2) + y2;
+			true_x = true_x + x_step;
+			true_y = (true_dy / true_dx) * (true_x - true_x1) + true_y1;
+			true_z = LinePointDepth(p1, p2, true_x, true_y);
 			z = LinePointDepth(p1, p2, x, y);
-			p = LinePointRatio(p1, p2, x, y);
+			p = LinePointRatio(p1, p2, true_x, true_y);
+
+			//DEBUG
+			if (abs(y - static_cast<int>(true_y)) > 1)
+				bool shit = true;
+
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
@@ -1426,6 +1475,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				xzcn_point.z = z;
 				xzcn_point.true_x = true_x;
 				xzcn_point.true_y = true_y;
+				xzcn_point.true_z = true_z;
 				xzcn_point.p = p;
 				xzcn_point.c = c;
 				xzcn_point.n = n;
@@ -1437,7 +1487,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				if (z < z_arr[SCREEN_SPACE(x, y)]){
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
-					z_arr[SCREEN_SPACE(x, y)] = z;
+					z_arr[SCREEN_SPACE(x, y)] = true_z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
 					}
@@ -1458,10 +1508,16 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				y = y - 1;
 			}
 			
-			true_x = true_x + 1;
-			true_y = (dy / dx) * (true_x - x2) + y2;
+			true_x = true_x + x_step;
+			true_y = (true_dy / true_dx) * (true_x - true_x1) + true_y1;
+			true_z = LinePointDepth(p1, p2, true_x, true_y);
 			z = LinePointDepth(p1, p2, x, y);
-			p = LinePointRatio(p1, p2, x, y);
+			p = LinePointRatio(p1, p2, true_x, true_y);
+
+			//DEBUG
+			if (abs(y - static_cast<int>(true_y)) > 1)
+				bool shit = true;
+
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
@@ -1477,6 +1533,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				xzcn_point.z = z;
 				xzcn_point.true_x = true_x;
 				xzcn_point.true_y = true_y;
+				xzcn_point.true_z = true_z;
 				xzcn_point.p = p;
 				xzcn_point.c = c;
 				xzcn_point.n = n;
@@ -1487,7 +1544,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				if (z < z_arr[SCREEN_SPACE(x, y)]){
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
-					z_arr[SCREEN_SPACE(x, y)] = z;
+					z_arr[SCREEN_SPACE(x, y)] = true_z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
 					}
@@ -1508,10 +1565,16 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				y = y - 1;
 			}
 			
-			true_y = true_y - 1;
-			true_x = (dx / dy) * (true_y - y2) + x2;
+			true_y = true_y + y_step;
+			true_x = (true_dx / true_dy) * (true_y - true_y1) + true_x1;
+			true_z = LinePointDepth(p1, p2, true_x, true_y);
 			z = LinePointDepth(p1, p2, x, y);
-			p = LinePointRatio(p1, p2, x, y);
+			p = LinePointRatio(p1, p2, true_x, true_y);
+
+			//DEBUG
+			if (abs(x - static_cast<int>(true_x)) > 1)
+				bool shit = true;
+
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
@@ -1528,6 +1591,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				xzcn_point.z = z;
 				xzcn_point.true_x = true_x;
 				xzcn_point.true_y = true_y;
+				xzcn_point.true_z = true_z;
 				xzcn_point.p = p;
 				xzcn_point.c = c;
 				xzcn_point.n = n;
@@ -1538,7 +1602,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				if (z < z_arr[SCREEN_SPACE(x, y)]){
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
-					z_arr[SCREEN_SPACE(x, y)] = z;
+					z_arr[SCREEN_SPACE(x, y)] = true_z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
 					}
@@ -1630,26 +1694,34 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 		double dz;
 		vec4 origin;
 		double err;
-		double z, ratio;
+		double x_step, y_step, z, ratio;
 		double true_y, true_x;
 		for (auto iter = x_y.begin(); iter != x_y.end(); ++iter){
 			std::sort(iter->second.begin(), iter->second.end());
 			int y = iter->first;
 			if (iter->second.size() > 1){
+				//scan_p1 = vec4(iter->second[0].x, y, iter->second[0].z, 1);
+				//scan_p2 = vec4(iter->second[iter->second.size() - 1].x, y, iter->second[iter->second.size() - 1].z, 1);
+				// z buffer / shadow map calculations
+				true_y = iter->second[0].true_y;
+				true_x = iter->second[0].true_x;
 				scan_p1 = vec4(iter->second[0].x, y, iter->second[0].z, 1);
 				scan_p2 = vec4(iter->second[iter->second.size() - 1].x, y, iter->second[iter->second.size() - 1].z, 1);
+				x_step = (iter->second[iter->second.size() - 1].true_x - iter->second[0].true_x) / (static_cast<int>(iter->second[0].x) - iter->second[iter->second.size() - 1].x);
+				y_step = (iter->second[iter->second.size() - 1].true_y - iter->second[0].true_y) / (static_cast<int>(iter->second[0].x) - iter->second[iter->second.size() - 1].x);
+
 				c1 = iter->second[0].c;
 				c2 = iter->second[iter->second.size() - 1].c;
 				n1 = iter->second[0].n;
 				n2 = iter->second[iter->second.size() - 1].n;
+
+				// texture calculations
 				origin = iter->second[0].origin;
 				dx = iter->second[iter->second.size() - 1].origin.x - origin.x;
 				dy = iter->second[iter->second.size() - 1].origin.y - origin.y;
 				dz = iter->second[iter->second.size() - 1].origin.z - origin.z;
 				dis_x = iter->second[iter->second.size() - 1].x - iter->second[0].x;
 				err = NULL;
-				true_y = iter->second[0].true_y;
-				true_x = iter->second[0].true_x;
 				for (int x = static_cast<int>(iter->second[0].x); x <= iter->second[iter->second.size() - 1].x; x++){
 					if (IN_RANGE(x, y)){
 						z = LinePointDepth(scan_p1, scan_p2, x, y);
@@ -1678,12 +1750,69 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 						}
 					}
 					if (m_texture != NULL) err = NextPoint(origin, iter->second[iter->second.size() - 1].origin, dis_x, dx, dy, dz, err);
-					true_x++;
+					true_x += x_step;
+					true_y += y_step;
 				}
 			}
 		}
 	}
 }
+
+mat4 CCGWorkView::ScaleToScreen(mat4 cur_transform, vec4 max_vec, vec4 min_vec){
+	double minx = min_vec.x;
+	double miny = min_vec.y;
+	double minz = min_vec.z;
+
+	double maxx = max_vec.x;
+	double maxy = max_vec.y;
+	double maxz = max_vec.z;
+
+	vec4 edge_pnts[8];
+	mat4 bound_box_scale;
+
+	edge_pnts[0] = vec4(minx, miny, minz, 1.0);
+	edge_pnts[1] = vec4(minx, miny, maxz, 1.0);
+
+	edge_pnts[2] = vec4(minx, maxy, minz, 1.0);
+	edge_pnts[3] = vec4(minx, maxy, maxz, 1.0);
+
+	edge_pnts[4] = vec4(maxx, miny, minz, 1.0);
+	edge_pnts[5] = vec4(maxx, miny, maxz, 1.0);
+
+	edge_pnts[6] = vec4(maxx, maxy, minz, 1.0);
+	edge_pnts[7] = vec4(maxx, maxy, maxz, 1.0);
+
+	vec4 edge_pnt_on_screen = edge_pnts[0] * cur_transform;
+	edge_pnt_on_screen = edge_pnt_on_screen / edge_pnt_on_screen.p;
+	maxx = edge_pnt_on_screen.x;
+	maxy = edge_pnt_on_screen.y;
+	maxz = edge_pnt_on_screen.z;
+
+	minx = edge_pnt_on_screen.x;
+	miny = edge_pnt_on_screen.x;
+	minz = edge_pnt_on_screen.x;
+
+	for (int i = 0; i < 8; i++){
+		edge_pnt_on_screen = edge_pnts[i] * cur_transform;
+		edge_pnt_on_screen = edge_pnt_on_screen / edge_pnt_on_screen.p;
+		maxx = max(edge_pnt_on_screen.x, maxx);
+		maxy = max(edge_pnt_on_screen.y, maxy);
+		maxz = max(edge_pnt_on_screen.z, maxz);
+
+		minx = max(edge_pnt_on_screen.x, minx);
+		miny = max(edge_pnt_on_screen.x, miny);
+		minz = max(edge_pnt_on_screen.x, minz);
+	}
+
+
+	double scale = m_WindowWidth < m_WindowHeight ? m_WindowWidth / (maxx - minx) : m_WindowHeight / (maxy - miny);
+	bound_box_scale[0][0] = scale;
+	bound_box_scale[1][1] = scale;
+	bound_box_scale[2][2] = scale;
+	bound_box_scale[3][3] = 1;
+	return bound_box_scale;
+};
+
 
 void CCGWorkView::DrawBoundBox(double *z_arr, COLORREF *arr, model &model, mat4 cur_transform, mat4 inv_cur_transform, COLORREF color){
 
@@ -1734,13 +1863,9 @@ bool CCGWorkView::VisibleToLight(LightParams light, mat4 cur_inv_transform, vec4
 
 	mat4 light_transform;
 
-	light_transform = light.transpose * light.coord_system_neg_x;
 	vec4 ligt_coord_pos = point *
 		cur_inv_transform *
-		light_transform *
-		m_prespective_trans * //TODO change prespective light transform
-		m_screen_space_scale *
-		m_screen_space_translate;
+		light.light_transform;
 
 	ligt_coord_pos = ligt_coord_pos / ligt_coord_pos.p;
 
@@ -1749,14 +1874,9 @@ bool CCGWorkView::VisibleToLight(LightParams light, mat4 cur_inv_transform, vec4
 	int y = static_cast<int>(ligt_coord_pos.y);
 	
 	if (IN_RANGE(x, y)){
-		double z = light.z_array_xdir[SCREEN_SPACE(x, y)];
-		if (z < 0){
-			if (ligt_coord_pos.z < 0.99*z)
-				return true;
-		}
-		else
-			if (ligt_coord_pos.z <= m_shadow_err * z)
-				return true;
+		double z = light.z_array_xdir[SCREEN_SPACE_SHADOWMAP(x, y)];
+		if (abs(ligt_coord_pos.z - z) < m_shadow_err)
+			return true;
 	}
 	
 	return false;
@@ -1953,6 +2073,9 @@ void CCGWorkView::set_light_pos(mat4 view_space_trans){
 
 			m_lights[l].rel_pos = pos / pos.p;
 
+			pos = pos * view_space_trans;
+
+
 			m_lights[l].transpose[3][0] = -m_lights[l].posX;
 			m_lights[l].transpose[3][1] = -m_lights[l].posY;
 			m_lights[l].transpose[3][2] = -m_lights[l].posZ;
@@ -1975,39 +2098,107 @@ void CCGWorkView::set_light_pos(mat4 view_space_trans){
 	}
 }
 
-void CCGWorkView::RenderLightScene(LightParams light){
+void CCGWorkView::RenderLightScene(LightParams &light, vec4 model_center){
 	if (!m_shadows) return;
 
 	int prev_m_nView = m_nView;
 	int prev_m_nLightShading = m_nLightShading;
+	int prev_m_WindowHeight = m_WindowHeight;
+	int prev_m_WindowWidth = m_WindowWidth;
 	
+	// point the light to the center of the current model
+	mat4 light_coord_system;
+	mat4 traspose_to_center;
+	vec4 light_dir_x, light_dir_y, light_dir_z;
+	vec4 light_pos;
 	
+	if (light.type == LIGHT_TYPE_POINT){
+		m_nView = ID_VIEW_PERSPECTIVE;
+
+		light_pos.x = m_lights[0].posX;
+		light_pos.y = m_lights[0].posY;
+		light_pos.z = m_lights[0].posZ;
+		light_dir_z = model_center - light_pos;
+
+		light_dir_z = light_dir_z / sqrt(pow(light_dir_z.x, 2) + pow(light_dir_z.y, 2) + pow(light_dir_z.z, 2));
+		light_dir_z.p = 1;
+
+		light_dir_x.x = -(light_dir_z.y + light_dir_z.z) / light_dir_z.x;
+		light_dir_x.y = 1;
+		light_dir_x.z = 1;
+		light_dir_x = light_dir_x / sqrt(pow(light_dir_x.x, 2) + pow(light_dir_x.y, 2) + pow(light_dir_x.z, 2));
+		light_dir_x.p = 1;
+
+		light_dir_y = cross(light_dir_z, light_dir_x);
+
+		light_dir_x.p = light_dir_y.p = light_dir_z.p = 0;
+
+		light_coord_system[0] = light_dir_x;
+		light_coord_system[1] = light_dir_y;
+		light_coord_system[2] = light_dir_z;
+		light_coord_system[3][3] = 1;
+		light_coord_system = transpose(light_coord_system);
+
+		light.light_transform = light.transpose	* light_coord_system * m_prespective_trans * m_shadow_screen_space;
+	}
+	else if (light.type == LIGHT_TYPE_DIRECTIONAL){
+		m_nView = ID_VIEW_ORTHOGRAPHIC;
+
+		light_pos.x = m_lights[0].dirX;
+		light_pos.y = m_lights[0].dirY;
+		light_pos.z = m_lights[0].dirZ;
+
+		light_dir_z = light_dir_z / sqrt(pow(light_dir_z.x, 2) + pow(light_dir_z.y, 2) + pow(light_dir_z.z, 2));
+		light_dir_z.p = 1;
+
+		light_dir_x.x = -(light_dir_z.y + light_dir_z.z) / light_dir_z.x;
+		light_dir_x.y = 1;
+		light_dir_x.z = 1;
+		light_dir_x = light_dir_x / sqrt(pow(light_dir_x.x, 2) + pow(light_dir_x.y, 2) + pow(light_dir_x.z, 2));
+		light_dir_x.p = 1;
+
+		light_dir_y = cross(light_dir_z, light_dir_x);
+
+		light_dir_x.p = light_dir_y.p = light_dir_z.p = 0;
+
+		light_coord_system[0] = light_dir_x;
+		light_coord_system[1] = light_dir_y;
+		light_coord_system[2] = light_dir_z;
+		light_coord_system[3][3] = 1;
+		light_coord_system = transpose(light_coord_system);
+
+		traspose_to_center[0][0] = 1;
+		traspose_to_center[1][1] = 1;
+		traspose_to_center[2][2] = 1;
+
+		traspose_to_center[3] = -1 * model_center;
+
+		traspose_to_center[3][3] = 1;
+
+		light.light_transform = light_coord_system * m_shadow_screen_space;
+	}
+
 	mat4 light_transform;
 	mat4 null_transfrom;
 
-	std::fill_n(light.z_array_xdir, m_WindowWidth * m_WindowHeight, std::numeric_limits<double>::infinity());
+	m_WindowHeight = m_shadow_size;
+	m_WindowWidth = m_shadow_size;
 
+	std::fill_n(light.z_array_xdir, m_shadow_size * m_shadow_size, std::numeric_limits<double>::infinity());
 	for (unsigned int m = 0; m < models.size(); m++){
-		light_transform = models[m].view_space_trans * 
-						  models[m].obj_coord_trans	 * 
-						  models[m].camera_trans	 * 
-						  light.transpose			 * 
-						  light.coord_system_neg_x	 * 
-						  m_prespective_trans		 * //TODO change prespective light transform
-						  m_screen_space_scale		 * 
-						  m_screen_space_translate;
 
-		m_nLightShading = ID_LIGHT_SHADING_FLAT;
-		if (light.type == LIGHT_TYPE_POINT)
-			m_nView = ID_VIEW_PERSPECTIVE;
-		else if (light.type == LIGHT_TYPE_DIRECTIONAL)
-			m_nView = ID_VIEW_ORTHOGRAPHIC;
+		light_transform = models[m].view_space_trans *
+						models[m].obj_coord_trans	 *
+						models[m].camera_trans	 *
+						light.light_transform;
 
 		for (unsigned int pol = 0; pol < models[m].polygons.size(); pol++){
 			ScanConversion(light.z_array_xdir, NULL, models[m].polygons[pol], light_transform, null_transfrom, models[m].color);
 		}
 	}
 
+	m_WindowHeight = prev_m_WindowHeight;
+	m_WindowWidth = prev_m_WindowWidth;
 	m_nView = prev_m_nView;
 	m_nLightShading = prev_m_nLightShading;
 }
@@ -2041,14 +2232,6 @@ void CCGWorkView::AntiAliasing(COLORREF *out_arr, COLORREF *in_arr){
 				}
 			}
 
-			//r_min = min(r_min, f_r);
-			//g_min = min(g_min, f_g);
-			//b_min = min(b_min, f_g);
-
-			//r_max = max(r_max, f_r);
-			//g_max = max(g_max, f_g);
-			//b_max = max(b_max, f_g);
-
 			if (f_r < -0.5 || f_r > 255.5 || f_g < -0.5 || f_g > 255.5 || f_b < -0.5 || f_b > 255.5)
 				bool shit = true;
 
@@ -2075,14 +2258,6 @@ void CCGWorkView::RenderScene() {
 	}
 
 	///////////////////////////////
-	// Light POV rendering
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	//for (int i = 0; i < MAX_LIGHT; i++){
-	for (int i = 0; i < 1; i++){
-		RenderLightScene(m_lights[i]);
-	}
-
-	///////////////////////////////
 	// Background drawing
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	SetBackgound();	
@@ -2097,7 +2272,6 @@ void CCGWorkView::RenderScene() {
 	mat4 inv_cur_transfrom;
 	COLORREF c;
 	for (unsigned int m = 0; m < models.size(); m++){
-		m_cur_transform = models[m].camera_trans;
 		if (m_nView == ID_VIEW_ORTHOGRAPHIC){
 			cur_transform = models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans * m_camera_transpose * m_screen_space_scale * m_screen_space_translate;
 			inv_cur_transfrom = m_inv_screen_space_translate * m_inv_screen_space_scale * m_inv_camera_transpose;
@@ -2108,32 +2282,107 @@ void CCGWorkView::RenderScene() {
 			inv_cur_transfrom = m_inv_screen_space_translate * m_inv_screen_space_scale * m_inv_prespective_trans * m_inv_camera_transpose;
 			set_light_pos(models[m].camera_trans * m_camera_transpose);
 		}
+		m_cur_transform = cur_transform;
 		if (m_light_view){
-			mat4 light_coord_system;
+			// point the light to the center of the current model
+			mat4 light_coord_system, traspose_to_center;
+			vec4 light_dir_x, light_dir_y, light_dir_z;
+			vec4 light_pos;
 			
-			if (m_nLightView == ID_LIGHT1POV_Z){
-				light_coord_system = m_lights[0].coord_system_z;
-			}
-			else if (m_nLightView == ID_LIGHT1POV_NEG_Z){
-				light_coord_system = m_lights[0].coord_system_neg_z;
-			}
-			else if (m_nLightView == ID_LIGHT1POV_Y){
-				light_coord_system = m_lights[0].coord_system_y;
-			}
-			else if (m_nLightView == ID_LIGHT1POV_NEG_Y){
-				light_coord_system = m_lights[0].coord_system_neg_y;
-			}
-			else if (m_nLightView == ID_LIGHT1POV_X){
-				light_coord_system = m_lights[0].coord_system_x;
-			}
-			else if (m_nLightView == ID_LIGHT1POV_NEG_X){
-				light_coord_system = m_lights[0].coord_system_neg_x;
-			}
+			vec4 model_center = (0.5 * (models[m].max_vec + models[m].min_vec)) * models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans;
+			if (m_lights[0].type == LIGHT_TYPE_POINT){
 
-			cur_transform = cur_transform * inv_cur_transfrom * m_lights[0].transpose * light_coord_system * m_prespective_trans * m_screen_space_scale * m_screen_space_translate;
+				light_pos.x = m_lights[0].posX;
+				light_pos.y = m_lights[0].posY;
+				light_pos.z = m_lights[0].posZ;
+				light_dir_z = model_center - light_pos;
+
+				light_dir_z = light_dir_z / sqrt(pow(light_dir_z.x, 2) + pow(light_dir_z.y, 2) + pow(light_dir_z.z, 2));
+				light_dir_z.p = 1;
+
+				light_dir_x.x = -(light_dir_z.y + light_dir_z.z) / light_dir_z.x;
+				light_dir_x.y = 1;
+				light_dir_x.z = 1;
+				light_dir_x = light_dir_x / sqrt(pow(light_dir_x.x, 2) + pow(light_dir_x.y, 2) + pow(light_dir_x.z, 2));
+				light_dir_x.p = 1;
+
+				light_dir_y = cross(light_dir_z, light_dir_x);
+
+				light_dir_x.p = light_dir_y.p = light_dir_z.p = 0;
+
+				light_coord_system[0] = light_dir_x;
+				light_coord_system[1] = light_dir_y;
+				light_coord_system[2] = light_dir_z;
+				light_coord_system[3][3] = 1;
+				light_coord_system = transpose(light_coord_system);
+
+				cur_transform = models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans * m_lights[0].transpose * light_coord_system * m_prespective_trans * m_screen_space_scale * m_screen_space_translate;
+
+			}
+			else if (m_lights[0].type == LIGHT_TYPE_DIRECTIONAL){
+
+				light_pos = model_center;
+
+				light_dir_z.x = m_lights[0].dirX;
+				light_dir_z.y = m_lights[0].dirY;
+				light_dir_z.z = m_lights[0].dirZ;
+				light_dir_z = model_center - light_pos;
+
+				light_dir_z = light_dir_z / sqrt(pow(light_dir_z.x, 2) + pow(light_dir_z.y, 2) + pow(light_dir_z.z, 2));
+				light_dir_z.p = 1;
+
+				light_dir_x.x = -(light_dir_z.y + light_dir_z.z) / light_dir_z.x;
+				light_dir_x.y = 1;
+				light_dir_x.z = 1;
+				light_dir_x = light_dir_x / sqrt(pow(light_dir_x.x, 2) + pow(light_dir_x.y, 2) + pow(light_dir_x.z, 2));
+				light_dir_x.p = 1;
+
+				light_dir_y = cross(light_dir_z, light_dir_x);
+
+				light_dir_x.p = light_dir_y.p = light_dir_z.p = 0;
+
+				light_coord_system[0] = light_dir_x;
+				light_coord_system[1] = light_dir_y;
+				light_coord_system[2] = light_dir_z;
+				light_coord_system[3][3] = 1;
+				light_coord_system = transpose(light_coord_system);
+
+
+				model_center = model_center * light_coord_system;
+
+				traspose_to_center[0][0] = 1;
+				traspose_to_center[1][1] = 1;
+				traspose_to_center[2][2] = 1;
+
+				traspose_to_center[3] = -1 * model_center;
+
+				traspose_to_center[3][3] = 1;
+
+				cur_transform = models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans * light_coord_system * traspose_to_center * m_screen_space_scale * m_screen_space_translate;
+
+				model_center = (0.5 * (models[m].max_vec + models[m].min_vec)) * cur_transform;
+
+				traspose_to_center[0][0] = 1;
+				traspose_to_center[1][1] = 1;
+				traspose_to_center[2][2] = 1;
+
+				traspose_to_center[3] = -1 * model_center;
+
+				traspose_to_center[3][3] = 1;
+
+				cur_transform = cur_transform * traspose_to_center;
+			}
 		}
 
 		if (render_type == ID_VIEW_SOLID || render_type == ID_VIEW_Z){
+
+			// render scence from light POV for this model, assume if light is inside boundbox, model has no shadows
+			vec4 model_center = (0.5 * (models[m].max_vec + models[m].min_vec)) * models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans;
+			for (int i = 0; i < MAX_LIGHT; i++){
+				if (m_lights[i].enabled)
+					RenderLightScene(m_lights[i], model_center);
+			}
+
 			if (!m_back_face_culling){
 				for (unsigned int pol = 0; pol < models[m].polygons.size(); pol++){
 					if (m_texture != NULL) c = RGB(255, 255, 255);
@@ -2530,9 +2779,10 @@ void CCGWorkView::OnOptionMouseSensetivity(){
 }
 
 void CCGWorkView::OnOptionPrespectiveControl(){
-	PrespectiveControlDialog dlg(m_presepctive_d);
+	PrespectiveControlDialog dlg(m_presepctive_d, m_presepctive_alpha);
 	if (dlg.DoModal() == IDOK){
 		m_presepctive_d = dlg.d;
+		m_presepctive_alpha = dlg.m_prespective_alpha;
 
 		m_prespective_trans[0][0] = 1;
 		m_prespective_trans[1][1] = 1;
@@ -2552,13 +2802,16 @@ void CCGWorkView::OnOptionOthers(){
 		models_list += models[m].model_name + "\n";
 		active_models_list.push_back(models[m].active_model);
 	}
-	OtherOptionsDialog dlg(m_shadow_err, CGSkelFFCState.FineNess, models_list, active_models_list);
+	OtherOptionsDialog dlg(m_shadow_size, m_shadow_err, CGSkelFFCState.FineNess, models_list, active_models_list);
 	if (dlg.DoModal() == IDOK){
 		CGSkelFFCState.FineNess = dlg.finess;
 		m_shadow_err = dlg.shadow_err;
+		m_shadow_size = dlg.shadow_size;
 		for (unsigned int m = 0; m < models.size(); m++){
 			models[m].active_model = dlg.active_modules[m];
 		}
+
+		Invalidate();
 	}
 }
 // LIGHT SHADING HANDLERS ///////////////////////////////////////////
@@ -2610,8 +2863,10 @@ void CCGWorkView::OnLightConstants()
 		m_diffuse_k = dlg.m_diffuse_mod;
 		m_speculr_k = dlg.m_specular_mod;
 		m_speculr_n = dlg.m_specular_n;
+
+		Invalidate();
 	}
-	Invalidate();
+	
 }
 
 void CCGWorkView::OnPolygonGiven()

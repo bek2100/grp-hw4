@@ -53,6 +53,7 @@ private:
 	bool m_back_face_culling;
 	bool m_silhouette;
 	bool m_light_view;
+	int m_shadow_size;
 	int m_texture;
 	bool m_shadows;
 	double m_silhouette_thickness;
@@ -80,6 +81,7 @@ private:
 		double z;
 		double true_x;
 		double true_y;
+		double true_z;
 		double p;
 		COLORREF c;
 		vec4 n;
@@ -92,12 +94,14 @@ private:
 	void DrawBoundBox(double *z_arr, COLORREF *arr, model &m, mat4 cur_transform, mat4 inv_cur_transform, COLORREF color);
 	void ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 cur_transform, mat4 inv_cur_transfrom, COLORREF color);
 	void SetBackgound();
-	void RenderLightScene(LightParams light);
+	void RenderLightScene(LightParams &light, vec4 model_center);
 	bool VisibleToLight(LightParams light, mat4 cur_inv_transform, vec4 point);
+	mat4 ScaleToScreen(mat4 cur_transform, vec4 max_vec, vec4 min_vec);
 	void set_light_pos(mat4 view_space_trans);
 	double LinePointDepth(vec4 &p1, vec4 &p2, double x, double y);
 	double LinePointRatio(vec4 &p1, vec4 &p2, double x, double y);
-	void CCGWorkView::AntiAliasing(COLORREF *out_arr, COLORREF *int_arr);
+	void AntiAliasing(COLORREF *out_arr, COLORREF *int_arr);
+
 
 	COLORREF ApplyLight(COLORREF in_color, vec4 normal, vec4 pos, mat4 cur_inv_transform);
 	COLORREF m_color_wireframe;
@@ -144,6 +148,8 @@ protected:
 	mat4 m_prespective_trans;
 	mat4 m_screen_space_scale;
 	mat4 m_screen_space_translate;
+	mat4 m_light_trans;
+	mat4 m_shadow_screen_space;
 
 	mat4 m_inv_camera_transpose;
 	mat4 m_inv_screen_space_trans;

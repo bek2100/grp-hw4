@@ -73,6 +73,8 @@ public:
 	mat4 coord_system_z;
 	mat4 coord_system_neg_z;
 
+	mat4 light_transform;
+
 	vec4 rel_dir;
 
     LightParams():

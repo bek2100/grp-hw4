@@ -32,6 +32,8 @@ public:
 	mat4 inv_camera_trans;
 	mat4 inv_view_space_trans;
 
+	mat4 inv_view_space_transpose;
+
 	vec4 min_vec;
 	vec4 max_vec;
 

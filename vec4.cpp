@@ -117,3 +117,17 @@ double& vec4::operator[](int indx){
 	else
 		throw;
 };
+
+// return the product of (lhx X rhs)
+vec4 cross(vec4 lhs, vec4 rhs){
+	vec4 res;
+	lhs = lhs / lhs.p;
+	rhs = rhs / rhs.p;
+
+	res.x = (lhs.y * rhs.z - lhs.z * rhs.y);
+	res.y = (lhs.z * rhs.x - lhs.x * rhs.z);
+	res.z = (lhs.x * rhs.y - lhs.y * rhs.x);
+	res.p = 1;
+
+	return res;
+};
