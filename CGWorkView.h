@@ -94,7 +94,7 @@ private:
 	void DrawBoundBox(double *z_arr, COLORREF *arr, model &m, mat4 cur_transform, mat4 inv_cur_transform, COLORREF color);
 	void ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 cur_transform, mat4 inv_cur_transfrom, COLORREF color);
 	void SetBackgound();
-	void RenderLightScene(LightParams &light, vec4 model_center);
+	void RenderLightScene(LightParams &light, vec4 model_center, vec4 global_center);
 	bool VisibleToLight(LightParams light, mat4 cur_inv_transform, vec4 point);
 	mat4 ScaleToScreen(mat4 cur_transform, vec4 max_vec, vec4 min_vec);
 	void set_light_pos(mat4 view_space_trans);
