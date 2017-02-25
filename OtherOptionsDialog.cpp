@@ -19,9 +19,10 @@ OtherOptionsDialog::OtherOptionsDialog(CWnd* pParent /*=NULL*/)
 
 }
 
-OtherOptionsDialog::OtherOptionsDialog(double _shadow_err, double def_finess, CString _models_list, std::vector<bool> _active_modules, CWnd* pParent /*=NULL*/)
+OtherOptionsDialog::OtherOptionsDialog(int _shadow_size, double _shadow_err, double def_finess, CString _models_list, std::vector<bool> _active_modules, CWnd* pParent /*=NULL*/)
 	: CDialogEx(OtherOptionsDialog::IDD, pParent)
 {
+	shadow_size = _shadow_size;
 	shadow_err = _shadow_err;
 	finess = def_finess;
 	models_list = _models_list;
@@ -36,6 +37,7 @@ void OtherOptionsDialog::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Text(pDX, IDC_EDIT_SHADOW_ERR, shadow_err);
+	DDX_Text(pDX, IDC_SHADOW_SIZE, shadow_size);
 	
 	double past_finess = finess;
 	DDX_Text(pDX, IDC_EDIT_FINESS, finess);
