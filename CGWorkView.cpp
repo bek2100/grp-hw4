@@ -1286,6 +1286,8 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 	//DEBUG
 	if (abs(x - static_cast<int>(true_x)) > 1)
 		bool shit = true;
+	if (abs(z - static_cast<int>(true_z)) > 1)
+		bool shit = true;
 
 	if (m_nLightShading == ID_LIGHT_SHADING_PHONg)
 		n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
@@ -1317,7 +1319,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			if (draw)
 				arr[SCREEN_SPACE(x, y)] = c;
 
-			z_arr[SCREEN_SPACE(x, y)] = true_z;
+			z_arr[SCREEN_SPACE(x, y)] = z;
 			if (m_render_target == ID_RENDER_TOFILE){
 				m_pngHandle.SetValue(x, y, c);
 			}
@@ -1339,6 +1341,8 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 
 			//DEBUG
 			if (abs(x - static_cast<int>(true_x)) > 1)
+				bool shit = true;
+			if (abs(z - static_cast<int>(true_z)) > 1)
 				bool shit = true;
 
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
@@ -1370,7 +1374,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
 
-					z_arr[SCREEN_SPACE(x, y)] = true_z;
+					z_arr[SCREEN_SPACE(x, y)] = z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
 					}
@@ -1404,6 +1408,8 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			//DEBUG
 			if (abs(x - static_cast<int>(true_x)) > 1)
 				bool shit = true;
+			if (abs(z - static_cast<int>(true_z)) > 1)
+				bool shit = true;
 
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
@@ -1433,7 +1439,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				if (z < z_arr[SCREEN_SPACE(x, y)]){
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
-					z_arr[SCREEN_SPACE(x, y)] = true_z;
+					z_arr[SCREEN_SPACE(x, y)] = z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
 					}
@@ -1463,6 +1469,8 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 
 			//DEBUG
 			if (abs(y - static_cast<int>(true_y)) > 1)
+				bool shit = true;
+			if (abs(z - static_cast<int>(true_z)) > 1)
 				bool shit = true;
 
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
@@ -1494,7 +1502,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				if (z < z_arr[SCREEN_SPACE(x, y)]){
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
-					z_arr[SCREEN_SPACE(x, y)] = true_z;
+					z_arr[SCREEN_SPACE(x, y)] = z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
 					}
@@ -1523,6 +1531,8 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 
 			//DEBUG
 			if (abs(y - static_cast<int>(true_y)) > 1)
+				bool shit = true;
+			if (abs(z - static_cast<int>(true_z)) > 1)
 				bool shit = true;
 
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
@@ -1553,7 +1563,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				if (z < z_arr[SCREEN_SPACE(x, y)]){
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
-					z_arr[SCREEN_SPACE(x, y)] = true_z;
+					z_arr[SCREEN_SPACE(x, y)] = z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
 					}
@@ -1582,6 +1592,8 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 
 			//DEBUG
 			if (abs(x - static_cast<int>(true_x)) > 1)
+				bool shit = true;
+			if (abs(z - static_cast<int>(true_z)) > 1)
 				bool shit = true;
 
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
@@ -1612,7 +1624,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				if (z < z_arr[SCREEN_SPACE(x, y)]){
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
-					z_arr[SCREEN_SPACE(x, y)] = true_z;
+					z_arr[SCREEN_SPACE(x, y)] = z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
 					}
