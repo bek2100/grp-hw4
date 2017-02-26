@@ -1208,6 +1208,9 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 	vec4 origin = vec4(0,0,0,0);
 	vec4 origin_direction = vec4(0, 0, 0, 0);
 
+	//DEBUG
+	origin_1 = NULL;
+
 	// midpoint algorithm
 	double p1_x = p1.x / p1.p;
 	double p2_x = p2.x / p2.p;
@@ -1222,14 +1225,10 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 	if (x1 != x2){
 		y1 = static_cast<int>(p1_x < p2_x ? p1_y : p2_y);
 		y2 = static_cast<int>(p1_x < p2_x ? p2_y : p1_y);
-		if(origin_1) origin = (p1_x < p2_x ? *origin_1 : *origin_2);
-		if(origin_1) origin_direction = (p1_x > p2_x ? *origin_1 : *origin_2);
 	}
 	else{
 		y1 = static_cast<int>(min(p1_y, p2_y));
 		y2 = static_cast<int>(max(p1_y, p2_y));
-		if(origin_1) origin = (p1_y < p2_y ? *origin_1 : *origin_2);
-		if(origin_1) origin_direction = (p1_y > p2_y ? *origin_1 : *origin_2);
 	}
 
 
@@ -1298,6 +1297,8 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 	else
 		c = p1_color;
 
+	if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+	if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
 
 	if (xy) {
 		xzcn_point.x = x;
@@ -1348,7 +1349,9 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				c = ApplyLight(p1_color, n, p * vec4(x, y, z, 1), inv_cur_transform);
 			else
 				c = p1_color;
-            if(origin_1) o_err = NextPoint(origin, origin_direction, dy, o_dx, o_dy, o_dz, o_err);
+
+			if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+			if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
             
 			if (xy) {
 				xzcn_point.x = x;
@@ -1410,7 +1413,9 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				c = ApplyLight(p1_color, n, p * vec4(x, y, z, 1), inv_cur_transform);
 			else
 				c = p1_color;
-            if (origin_1) o_err = NextPoint(origin, origin_direction, dy, o_dx, o_dy, o_dz, o_err);
+
+			if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+			if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
             
 			if (xy) {
 				xzcn_point.x = x;
@@ -1469,7 +1474,9 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			else
 				c = p1_color;
 
-            if (origin_1) o_err = NextPoint(origin, origin_direction, dx, o_dx, o_dy, o_dz, o_err);
+			if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+			if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+
             if (xy) {
 				xzcn_point.x = x;
 				xzcn_point.z = z;
@@ -1527,7 +1534,9 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			else
 				c = p1_color;
 
-            if (origin_1) o_err = NextPoint(origin, origin_direction, dx, o_dx, o_dy, o_dz, o_err);
+			if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+			if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+
             if (xy) {
 				xzcn_point.x = x;
 				xzcn_point.z = z;
@@ -1584,7 +1593,8 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			else
 				c = p1_color;
 
-            if (origin_1) o_err = NextPoint(origin, origin_direction, -dy, o_dx, o_dy, o_dz, o_err);
+			if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+			if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
             
             if (xy) {
 				xzcn_point.x = x;
@@ -1725,7 +1735,7 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 				for (int x = static_cast<int>(iter->second[0].x); x <= iter->second[iter->second.size() - 1].x; x++){
 					if (IN_RANGE(x, y)){
 						z = LinePointDepth(scan_p1, scan_p2, x, y);
-						ratio = LinePointRatio(iter->second[0].p * scan_p1, iter->second[iter->second.size() - 1].p * scan_p2, true_x, true_y);
+						ratio = LinePointRatio(iter->second[0].p * scan_p1, iter->second[iter->second.size() - 1].p * scan_p2, x, y);
 						if (z < z_arr[SCREEN_SPACE(x, y)]){
 							vec4 n = p1_normal;
 
@@ -1734,11 +1744,11 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 									n = LinePointNormal(scan_p1, scan_p2, n1, n2, x, y);
 								if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
 									c = LinePointLight(scan_p1, scan_p2, c1, c2, x, y);
-								else
+								else 
 									c = ApplyLight(color, n, ratio * vec4(x, y, z, 1), inv_cur_transfrom);
 
-								if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(origin, c);
-								if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(origin, c);
+								if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(ratio * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+								if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(ratio * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
 
 								arr[SCREEN_SPACE(x, y)] = c;
 							}
@@ -2311,6 +2321,7 @@ void CCGWorkView::RenderScene() {
 			inv_cur_transfrom = m_inv_screen_space_translate * m_inv_screen_space_scale * m_inv_prespective_trans * m_inv_camera_transpose;
 			set_light_pos(models[m].camera_trans * m_camera_transpose);
 		}
+		inv_cur_transform_object_space = inv_cur_transfrom * models[m].inv_camera_trans * models[m].inv_obj_coord_trans;
 		m_cur_transform = cur_transform;
 		if (m_light_view){
 			// point the light to the center of the current model

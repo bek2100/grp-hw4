@@ -150,6 +150,7 @@ protected:
 	mat4 m_screen_space_translate;
 	mat4 m_light_trans;
 	mat4 m_shadow_screen_space;
+	mat4 inv_cur_transform_object_space;
 
 	mat4 m_inv_camera_transpose;
 	mat4 m_inv_screen_space_trans;
