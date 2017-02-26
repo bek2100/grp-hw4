@@ -928,15 +928,24 @@ COLORREF CCGWorkView::MarbleColor(vec4 pos, COLORREF c){
 	cur_color = marble_colors[static_cast<int>(val_x*33)];
 	double mesh = val_x * 33 - static_cast<int>(val_x * 33);
 	COLORREF color;
-	color = marble_colors[static_cast<int>(val_x * 33) + 1];
+	color = marble_colors[(static_cast<int>(val_x * 33) + 1) % 32];
 	int c2r = static_cast<int>(max(min((GetBValue(cur_color)*mesh + GetBValue(color) * (1 - mesh)), 255), 0));
 	int c2g = static_cast<int>(max(min((GetGValue(cur_color)*mesh + GetGValue(color) * (1 - mesh)), 255), 0));
 	int c2b = static_cast<int>(max(min((GetRValue(cur_color)*mesh + GetRValue(color) * (1 - mesh)), 255), 0));
+	//debug
+	if (c2r <= 0 || c2r > 255)
+		bool shit = true;
+	if (c2g <= 0 || c2g > 255)
+		bool shit = true;
+	if (c2b <= 0 || c2b > 255)
+		bool shit = true;
+
+
 	return RGB(static_cast<int>(c2r*GetRValue(c) / 255), static_cast<int>(c2g*GetGValue(c) / 255), static_cast<int>(c2b*GetBValue(c) / 255));
 }
 
 static COLORREF WoodColor(vec4 pos, COLORREF c){
-	double val_x = abs(sin(2*(pow(pos.x,2) + pow(pos.y,2) + Turbalance(pos, 0.12))));
+	double val_x = abs(sin((pow(pos.x,2) + pow(pos.y,2) + Turbalance(pos, 0.12))));
 	COLORREF cur_color = wood_colors[static_cast<int>(val_x * 9)];
 	return RGB(static_cast<int>((GetBValue(cur_color) * GetRValue(c)) / 255), static_cast<int>((GetGValue(cur_color) *GetGValue(c)) / 255), static_cast<int>((GetRValue(cur_color)*GetBValue(c) / 255)));
 }
@@ -1291,6 +1300,15 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 	p = LinePointRatio(p1, p2, true_x, true_y);
 
 	//DEBUG
+	//vec4 restored_p1_raw_v1, restored_p1_raw_v2, restored_p1_raw_v3, restored_p1_pure, restored_p2_pure;
+	//vec4 raw_p1 = vec4(p * true_x, p * true_y, p * true_z, p);
+	//restored_p1_raw_v1 = (raw_p1 * inv_cur_transform_object_space);
+	//restored_p1_raw_v2 = p * (vec4(true_x, true_y, true_z, 1) * inv_cur_transform_object_space);
+	//restored_p1_raw_v3 = p * vec4(true_x, true_y, true_z, 1) * inv_cur_transform_object_space;
+
+	//restored_p1_pure = p1 * inv_cur_transform_object_space;
+	//restored_p2_pure = p2 * inv_cur_transform_object_space;
+
 	if (abs(x - static_cast<int>(true_x)) > 1)
 		bool shit = true;
 	if (abs(y - static_cast<int>(true_y)) > 1)
@@ -1304,12 +1322,12 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 	if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
 		c = LinePointLight(p1, p2, p1_color, p2_color ,x, y);
 	else if (draw)
-		c = ApplyLight(p1_color, n, p * vec4(true_x, true_y, true_z, 1), inv_cur_transform);
+		c = ApplyLight(p1_color, n, vec4(p * true_x, p * true_y, p * true_z, p), inv_cur_transform);
 	else
 		c = p1_color;
 
-	if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
-	if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+	if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(vec4(p * true_x, p * true_y, p * true_z, p) * inv_cur_transform_object_space, c);
+	if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(vec4(p * true_x, p * true_y, p * true_z, p) * inv_cur_transform_object_space, c);
 
 	if (xy) {
 		xzcn_point.x = x;
@@ -1328,7 +1346,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			if (draw)
 				arr[SCREEN_SPACE(x, y)] = c;
 			z_arr[SCREEN_SPACE(x, y)] = true_z;
-			if (m_render_target == ID_RENDER_TOFILE){
+			if (m_render_target == ID_RENDER_TOFILE && m_nAntiAliasing == ID_ANTIALIASING_OFF){
 				m_pngHandle.SetValue(x, y, c);
 			}
 		}
@@ -1357,15 +1375,15 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
-			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
+			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
 				c = LinePointLight(p1, p2, p1_color, p2_color, x, y);
 			else if (draw)
-				c = ApplyLight(p1_color, n, p * vec4(true_x, true_y, true_z, 1), inv_cur_transform);
+				c = ApplyLight(p1_color, n, vec4(p * true_x, p * true_y, p * true_z, p), inv_cur_transform);
 			else
 				c = p1_color;
 
-			if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
-			if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+			if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(vec4(p * true_x, p * true_y, p * true_z, p) * inv_cur_transform_object_space, c);
+			if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(vec4(p * true_x, p * true_y, p * true_z, p) * inv_cur_transform_object_space, c);
             
 			if (xy) {
 				xzcn_point.x = x;
@@ -1384,7 +1402,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
 					z_arr[SCREEN_SPACE(x, y)] = true_z;
-					if (m_render_target == ID_RENDER_TOFILE){
+					if (m_render_target == ID_RENDER_TOFILE && m_nAntiAliasing == ID_ANTIALIASING_OFF){
 						m_pngHandle.SetValue(x, y, c);
 					}
 				}
@@ -1424,15 +1442,15 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
-			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
+			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
 				c = LinePointLight(p1, p2, p1_color, p2_color, x, y);
 			else if (draw)
-				c = ApplyLight(p1_color, n, p * vec4(true_x, true_y, true_z, 1), inv_cur_transform);
+				c = ApplyLight(p1_color, n, vec4(p * true_x, p * true_y, p * true_z, p), inv_cur_transform);
 			else
 				c = p1_color;
 
-			if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
-			if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+			if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(vec4(p * true_x, p * true_y, p * true_z, p) * inv_cur_transform_object_space, c);
+			if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(vec4(p * true_x, p * true_y, p * true_z, p) * inv_cur_transform_object_space, c);
             
 			if (xy) {
 				xzcn_point.x = x;
@@ -1451,7 +1469,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
 					z_arr[SCREEN_SPACE(x, y)] = true_z;
-					if (m_render_target == ID_RENDER_TOFILE){
+					if (m_render_target == ID_RENDER_TOFILE && m_nAntiAliasing == ID_ANTIALIASING_OFF){
 						m_pngHandle.SetValue(x, y, c);
 					}
 				}
@@ -1488,15 +1506,15 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
-			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
+			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
 				c = LinePointLight(p1, p2, p1_color, p2_color, x, y);
 			else if (draw)
-				c = ApplyLight(p1_color, n, p * vec4(true_x, true_y, true_z, 1), inv_cur_transform);
+				c = ApplyLight(p1_color, n, vec4(p * true_x, p * true_y, p * true_z, p), inv_cur_transform);
 			else
 				c = p1_color;
 
-			if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
-			if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+			if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(vec4(p * true_x, p * true_y, p * true_z, p) * inv_cur_transform_object_space, c);
+			if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(vec4(p * true_x, p * true_y, p * true_z, p) * inv_cur_transform_object_space, c);
 
             if (xy) {
 				xzcn_point.x = x;
@@ -1516,7 +1534,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
 					z_arr[SCREEN_SPACE(x, y)] = true_z;
-					if (m_render_target == ID_RENDER_TOFILE){
+					if (m_render_target == ID_RENDER_TOFILE && m_nAntiAliasing == ID_ANTIALIASING_OFF){
 						m_pngHandle.SetValue(x, y, c);
 					}
 				}
@@ -1552,15 +1570,15 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
-			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
+			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
 				c = LinePointLight(p1, p2, p1_color, p2_color, x, y);
 			else if (draw)
-				c = ApplyLight(p1_color, n, p * vec4(true_x, true_y, true_z, 1), inv_cur_transform);
+				c = ApplyLight(p1_color, n, vec4(p * true_x, p * true_y, p * true_z, p), inv_cur_transform);
 			else
 				c = p1_color;
 
-			if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
-			if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+			if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(vec4(p * true_x, p * true_y, p * true_z, p) * inv_cur_transform_object_space, c);
+			if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(vec4(p * true_x, p * true_y, p * true_z, p) * inv_cur_transform_object_space, c);
 
             if (xy) {
 				xzcn_point.x = x;
@@ -1579,7 +1597,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
 					z_arr[SCREEN_SPACE(x, y)] = true_z;
-					if (m_render_target == ID_RENDER_TOFILE){
+					if (m_render_target == ID_RENDER_TOFILE && m_nAntiAliasing == ID_ANTIALIASING_OFF){
 						m_pngHandle.SetValue(x, y, c);
 					}
 				}
@@ -1615,15 +1633,15 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
-			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
+			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
 				c = LinePointLight(p1, p2, p1_color, p2_color, x, y);
 			else if (draw)
-				c = ApplyLight(p1_color, n, p * vec4(true_x, true_y, true_z, 1), inv_cur_transform);
+				c = ApplyLight(p1_color, n, vec4(p * true_x, p * true_y, p * true_z, p), inv_cur_transform);
 			else
 				c = p1_color;
 
-			if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
-			if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(p * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+			if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(vec4(p * true_x, p * true_y, p * true_z, p) * inv_cur_transform_object_space, c);
+			if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(vec4(p * true_x, p * true_y, p * true_z, p) * inv_cur_transform_object_space, c);
             
             if (xy) {
 				xzcn_point.x = x;
@@ -1642,7 +1660,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
 					z_arr[SCREEN_SPACE(x, y)] = true_z;
-					if (m_render_target == ID_RENDER_TOFILE){
+					if (m_render_target == ID_RENDER_TOFILE && m_nAntiAliasing == ID_ANTIALIASING_OFF){
 						m_pngHandle.SetValue(x, y, c);
 					}
 				}
@@ -1653,7 +1671,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 	return;
 }
 
-void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 cur_transform, mat4 inv_cur_transfrom, COLORREF color){
+void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 cur_transform, mat4 inv_cur_transfrom, COLORREF color, int texture_mode){
 	vec4 p1, p2;
 	std::unordered_map<int, std::vector<x_z_c_n_point>> x_y;
 	COLORREF c1, c2;
@@ -1773,8 +1791,6 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 						bool shit = true;
 					if (abs(y - static_cast<int>(true_y)) > 1)
 						bool shit = true;
-					//if (abs(z - static_cast<int>(true_z)) > 1)
-					//	bool shit = true;
 
 					if (IN_RANGE(x, y)){
 						z = LinePointDepth(scan_p1, scan_p2, true_x, true_y);
@@ -1788,21 +1804,21 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 								if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
 									c = LinePointLight(scan_p1, scan_p2, c1, c2, x, y);
 								else 
-									c = ApplyLight(color, n, ratio * vec4(true_x, true_y, z, 1), inv_cur_transfrom);
+									c = ApplyLight(color, n, vec4(ratio * true_x, ratio * true_y, ratio * z, ratio), inv_cur_transfrom);
 
-								if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(ratio * vec4(true_x, true_y, z, 1) * inv_cur_transform_object_space, c);
-								if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(ratio * vec4(true_x, true_y, z, 1) * inv_cur_transform_object_space, c);
+								if (texture_mode == ID_MARBLE_PICTURE || texture_mode == ID_MARBLE_SCALE) c = MarbleColor(vec4(ratio * true_x, ratio * true_y, ratio * z, ratio) * inv_cur_transform_object_space, c);
+								if (texture_mode == ID_TEXTURE_WOOD) c = WoodColor(vec4(ratio * true_x, ratio * true_y, ratio * z, ratio) * inv_cur_transform_object_space, c);
 
 								arr[SCREEN_SPACE(x, y)] = c;
 							}
 
 							z_arr[SCREEN_SPACE(x, y)] = z;
-							if (m_render_target == ID_RENDER_TOFILE){
+							if (m_render_target == ID_RENDER_TOFILE && m_nAntiAliasing == ID_ANTIALIASING_OFF){
 								m_pngHandle.SetValue(x, y, arr[SCREEN_SPACE(x, y)]);
 							}
 						}
 					}
-					if (m_texture != NULL) err = NextPoint(origin, iter->second[iter->second.size() - 1].origin, dis_x, dx, dy, dz, err);
+					//if (m_texture != NULL) err = NextPoint(origin, iter->second[iter->second.size() - 1].origin, dis_x, dx, dy, dz, err);
 					true_x += x_step;
 					true_y += y_step;
 				}
@@ -1945,7 +1961,7 @@ COLORREF CCGWorkView::ApplyLight(COLORREF in_color, vec4 normal, vec4 pos, mat4 
 	double grn_inentsity = m_ambient_k * ((double)m_ambientLight.colorG / 255) * GetGValue(in_color);
 	double blu_inentsity = m_ambient_k * ((double)m_ambientLight.colorB / 255) * GetBValue(in_color);
 
-	vec4 light_pos = pos;
+	vec4 object_pos = pos;
 
 	double cos_teta = 1;
 	double sin_teta = 1;
@@ -1969,7 +1985,7 @@ COLORREF CCGWorkView::ApplyLight(COLORREF in_color, vec4 normal, vec4 pos, mat4 
 	// apply diffuse reflection
 	for (int l = LIGHT_ID_1; l < MAX_LIGHT; l++){
 		if (m_lights[l].enabled){
-			if (VisibleToLight(m_lights[l], cur_inv_transform, light_pos)){
+			if (VisibleToLight(m_lights[l], cur_inv_transform, object_pos)){
 				if (m_lights[l].type == LIGHT_TYPE_POINT){
 
 					len_to_camera = sqrt(pow(pos.x, 2.0) +
@@ -2071,7 +2087,7 @@ void CCGWorkView::SetBackgound(){
 						);
 
 					m_screen[SCREEN_SPACE(x, y)] = RGB(GET_B(cur_color), GET_G(cur_color), GET_R(cur_color));
-					if (m_render_target == ID_RENDER_TOFILE){
+					if (m_render_target == ID_RENDER_TOFILE && m_nAntiAliasing == ID_ANTIALIASING_OFF){
 						m_pngHandle.SetValue(x, y, m_screen[SCREEN_SPACE(x, y)]);
 					}
 				}
@@ -2091,7 +2107,7 @@ void CCGWorkView::SetBackgound(){
 						);
 
 					m_screen[SCREEN_SPACE(x, y)] = RGB(GET_B(cur_color), GET_G(cur_color), GET_R(cur_color));;
-					if (m_render_target == ID_RENDER_TOFILE){
+					if (m_render_target == ID_RENDER_TOFILE && m_nAntiAliasing == ID_ANTIALIASING_OFF){
 						m_pngHandle.SetValue(x, y, m_screen[SCREEN_SPACE(x, y)]);
 					}
 				}
@@ -2141,9 +2157,9 @@ void CCGWorkView::set_light_pos(mat4 view_space_trans){
 
 
 			if (m_lights[l].space == LIGHT_SPACE_VIEW)
-				pos = pos * view_space_trans * m_screen_space_scale * m_screen_space_translate;
+				pos = pos * view_space_trans;
 			else
-				pos = pos * m_screen_space_scale * m_screen_space_translate;
+				pos = pos;
 
 			m_lights[l].rel_dir = pos / pos.p;
 
@@ -2158,6 +2174,7 @@ void CCGWorkView::RenderLightScene(LightParams &light, vec4 model_center, vec4 g
 	int prev_m_nLightShading = m_nLightShading;
 	int prev_m_WindowHeight = m_WindowHeight;
 	int prev_m_WindowWidth = m_WindowWidth;
+	int prev_m_render_target = m_render_target;
 	
 	// point the light to the center of the current model
 	mat4 light_coord_system;
@@ -2168,9 +2185,9 @@ void CCGWorkView::RenderLightScene(LightParams &light, vec4 model_center, vec4 g
 	if (light.type == LIGHT_TYPE_POINT){
 		m_nView = ID_VIEW_PERSPECTIVE;
 
-		light_pos.x = m_lights[0].posX;
-		light_pos.y = m_lights[0].posY;
-		light_pos.z = m_lights[0].posZ;
+		light_pos.x = light.posX;
+		light_pos.y = light.posY;
+		light_pos.z = light.posZ;
 		light_dir_z = model_center - light_pos;
 
 		light_dir_z = light_dir_z / sqrt(pow(light_dir_z.x, 2) + pow(light_dir_z.y, 2) + pow(light_dir_z.z, 2));
@@ -2210,9 +2227,9 @@ void CCGWorkView::RenderLightScene(LightParams &light, vec4 model_center, vec4 g
 	else if (light.type == LIGHT_TYPE_DIRECTIONAL){
 		m_nView = ID_VIEW_ORTHOGRAPHIC;
 
-		light_dir_z.x = m_lights[0].dirX;
-		light_dir_z.y = m_lights[0].dirY;
-		light_dir_z.z = m_lights[0].dirZ;
+		light_dir_z.x = light.dirX;
+		light_dir_z.y = light.dirY;
+		light_dir_z.z = light.dirZ;
 
 		light_dir_z = light_dir_z / sqrt(pow(light_dir_z.x, 2) + pow(light_dir_z.y, 2) + pow(light_dir_z.z, 2));
 		light_dir_z.p = 1;
@@ -2265,6 +2282,7 @@ void CCGWorkView::RenderLightScene(LightParams &light, vec4 model_center, vec4 g
 
 	m_WindowHeight = m_shadow_size;
 	m_WindowWidth = m_shadow_size;
+	m_render_target = ID_RENDER_TOSCREEN;
 
 	std::fill_n(light.z_array_xdir, m_shadow_size * m_shadow_size, std::numeric_limits<double>::infinity());
 	for (unsigned int m = 0; m < models.size(); m++){
@@ -2279,6 +2297,7 @@ void CCGWorkView::RenderLightScene(LightParams &light, vec4 model_center, vec4 g
 		}
 	}
 
+	m_render_target = prev_m_render_target;
 	m_WindowHeight = prev_m_WindowHeight;
 	m_WindowWidth = prev_m_WindowWidth;
 	m_nView = prev_m_nView;
@@ -2308,6 +2327,7 @@ void CCGWorkView::AntiAliasing(COLORREF *out_arr, COLORREF *in_arr){
 						f_r += m_AntiAliasingMask[m_i][m_j] * GetRValue(in_arr[SCREEN_SPACE(m_nAntiAliasingDim * x + m_i, m_nAntiAliasingDim * y + m_j)]);
 						f_g += m_AntiAliasingMask[m_i][m_j] * GetGValue(in_arr[SCREEN_SPACE(m_nAntiAliasingDim * x + m_i, m_nAntiAliasingDim * y + m_j)]);
 						f_b += m_AntiAliasingMask[m_i][m_j] * GetBValue(in_arr[SCREEN_SPACE(m_nAntiAliasingDim * x + m_i, m_nAntiAliasingDim * y + m_j)]);
+
 					}
 					else
 						bool shit = true;
@@ -2318,6 +2338,10 @@ void CCGWorkView::AntiAliasing(COLORREF *out_arr, COLORREF *in_arr){
 				bool shit = true;
 
 			out_arr[SCREEN_SPACE_ALIASING(x, y)] = RGB(static_cast<int>(max(0, min(f_r, 255))), static_cast<int>(max(0, min(f_g, 255))), static_cast<int>(max(0, min(f_b, 255))));
+
+			if (m_render_target == ID_RENDER_TOFILE){
+				m_pngHandle.SetValue(x, y, out_arr[SCREEN_SPACE_ALIASING(x, y)]);
+			}
 		}
 	}
 
@@ -2330,8 +2354,14 @@ void CCGWorkView::RenderScene() {
 	// PNG render handle
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	if (m_render_target == ID_RENDER_TOFILE){
-		m_pngHandle.SetWidth(m_WindowWidth);
-		m_pngHandle.SetHeight(m_WindowHeight);
+		if (m_nAntiAliasing == ID_ANTIALIASING_OFF){
+			m_pngHandle.SetWidth(m_WindowWidth);
+			m_pngHandle.SetHeight(m_WindowHeight);
+		}
+		else{
+			m_pngHandle.SetWidth(m_WindowWidth / m_nAntiAliasingDim);
+			m_pngHandle.SetHeight(m_WindowHeight / m_nAntiAliasingDim);
+		}
 		if (!m_pngHandle.InitWritePng()){
 			//TODO send error
 			return;
@@ -2364,7 +2394,18 @@ void CCGWorkView::RenderScene() {
 			inv_cur_transfrom = m_inv_screen_space_translate * m_inv_screen_space_scale * m_inv_prespective_trans * m_inv_camera_transpose;
 			set_light_pos(models[m].camera_trans * m_camera_transpose);
 		}
+
+		mat4 test1 = m_prespective_trans * m_inv_prespective_trans;
+		mat4 test2 = m_inv_prespective_trans * m_prespective_trans;
+		
+		mat4 test5 = models[m].view_space_trans * models[m].obj_coord_trans * models[m].camera_trans * m_camera_transpose * m_prespective_trans * m_screen_space_scale * m_screen_space_translate *
+			m_inv_screen_space_translate * m_inv_screen_space_scale * m_inv_prespective_trans * m_inv_camera_transpose * models[m].inv_camera_trans * models[m].inv_obj_coord_trans;
+
 		inv_cur_transform_object_space = inv_cur_transfrom * models[m].inv_camera_trans * models[m].inv_obj_coord_trans;
+
+		mat4 test3 = cur_transform * inv_cur_transform_object_space;
+		mat4 test4 = inv_cur_transform_object_space * cur_transform;
+
 		m_cur_transform = cur_transform;
 		if (m_light_view){
 			// point the light to the center of the current model
@@ -2484,19 +2525,19 @@ void CCGWorkView::RenderScene() {
 
 			if (!m_back_face_culling){
 				for (unsigned int pol = 0; pol < models[m].polygons.size(); pol++){
-					if (m_texture != NULL) c = RGB(255, 255, 255);
+					if (models[m].texture_mode != NULL) c = RGB(255, 255, 255);
 					else  c = models[m].color;
-					ScanConversion(z_buffer, m_screen, models[m].polygons[pol], cur_transform, inv_cur_transfrom, c);
+					ScanConversion(z_buffer, m_screen, models[m].polygons[pol], cur_transform, inv_cur_transfrom, c, models[m].texture_mode);
 				}
 			}
 			else{
 				for (unsigned int pol = 0; pol < models[m].polygons.size(); pol++){
 					p1 = models[m].polygons[pol].Normal(!m_override_normals).p_a * cur_transform;
 					p2 = models[m].polygons[pol].Normal(!m_override_normals).p_b * cur_transform;
-					if (m_texture != NULL) c = RGB(255, 255, 255);
+					if (models[m].texture_mode != NULL) c = RGB(255, 255, 255);
 					else  c = models[m].color;
 					if (p2.z / p2.p < p1.z / p1.p)
-						ScanConversion(z_buffer, m_screen, models[m].polygons[pol], cur_transform, inv_cur_transfrom, c);
+						ScanConversion(z_buffer, m_screen, models[m].polygons[pol], cur_transform, inv_cur_transfrom, c, models[m].texture_mode);
 				}
 			}
 		}
@@ -3081,8 +3122,8 @@ void CCGWorkView::OnRenderTofile()
 
 	if (dlg.DoModal() == IDOK)
 	{
-		m_WindowHeight = m_nAntiAliasingDim * dlg.m_pic_height;
-		m_WindowWidth = m_nAntiAliasingDim * dlg.m_pic_width;
+		m_WindowHeight = dlg.m_pic_height;
+		m_WindowWidth = dlg.m_pic_width;
 
 		//// Convert a TCHAR string to a LPCSTR
 		// required for data type conversions
@@ -3106,8 +3147,8 @@ void CCGWorkView::OnUpdateRenderTofile(CCmdUI *pCmdUI)
 void CCGWorkView::OnRenderToscreen()
 {
 	m_render_target = ID_RENDER_TOSCREEN;
-	m_WindowHeight = m_nAntiAliasingDim * m_OriginalWindowHeight;
-	m_WindowWidth = m_nAntiAliasingDim * m_OriginalWindowWidth;
+	m_WindowHeight = m_OriginalWindowHeight;
+	m_WindowWidth = m_OriginalWindowWidth;
 	Invalidate();
 }
 
@@ -3282,6 +3323,13 @@ void CCGWorkView::OnLight1povNegX()
 
 void CCGWorkView::OnTextureWood()
 {
+	for (unsigned int m = 0; m < models.size(); m++){
+		if (models[m].active_model){
+			models[m].texture_mode = ID_TEXTURE_WOOD;
+			if (m_texture == ID_TEXTURE_WOOD)
+				models[m].texture_mode = NULL;
+		}
+	}
 	// TODO: Add your command handler code here
 	if(m_texture==ID_TEXTURE_WOOD) m_texture = NULL;
 	else m_texture = ID_TEXTURE_WOOD;
@@ -3297,6 +3345,15 @@ void CCGWorkView::OnUpdateTextureWood(CCmdUI *pCmdUI)
 void CCGWorkView::OnMarblePicture()
 {
 	// TODO: Add your command handler code here
+	for (unsigned int m = 0; m < models.size(); m++){
+		if (models[m].active_model){
+			models[m].texture_mode = ID_MARBLE_PICTURE;
+			if (m_texture == ID_MARBLE_PICTURE)
+				models[m].texture_mode = NULL;
+		}
+	}
+
+
 	if (m_texture == ID_MARBLE_PICTURE) m_texture = NULL;
 	else m_texture = ID_MARBLE_PICTURE;
 	Invalidate();
@@ -3312,7 +3369,16 @@ void CCGWorkView::OnUpdateMarblePicture(CCmdUI *pCmdUI)
 
 void CCGWorkView::OnMarbleScale()
 {
-	// TODO: Add your command handler code here
+	
+	for (unsigned int m = 0; m < models.size(); m++){
+		if (models[m].active_model){
+			models[m].texture_mode = ID_MARBLE_SCALE;
+			if (m_texture == ID_MARBLE_SCALE)
+				models[m].texture_mode = NULL;
+		}
+	}
+
+
 	if (m_texture == ID_MARBLE_SCALE) m_texture = NULL;
 	else m_texture = ID_MARBLE_SCALE;
 	Invalidate();

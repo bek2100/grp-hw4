@@ -28,7 +28,7 @@ model::model()
 	camera_trans[3].p = 1;
 
 	inv_camera_trans = camera_trans;
-
+	texture_mode = NULL;
 	active_model = true;
 	color = RGB(255, 255, 255);
 }

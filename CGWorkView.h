@@ -92,7 +92,7 @@ private:
 	COLORREF MarbleColor(vec4 pos, COLORREF c);
 	void DrawLine(mat4 inv_cur_transform, double *z_arr, COLORREF *arr, vec4 &p1, vec4 &p2, COLORREF p1_color, vec4* p1_normal = NULL, COLORREF p2_color = NULL, vec4* p2_normal = NULL, std::unordered_map<int, std::vector<x_z_c_n_point>>* x_y = NULL, vec4* origin_1 = NULL, vec4* origin_2 = NULL);
 	void DrawBoundBox(double *z_arr, COLORREF *arr, model &m, mat4 cur_transform, mat4 inv_cur_transform, COLORREF color);
-	void ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 cur_transform, mat4 inv_cur_transfrom, COLORREF color);
+	void ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 cur_transform, mat4 inv_cur_transfrom, COLORREF color, int texture_mode = NULL);
 	void SetBackgound();
 	void RenderLightScene(LightParams &light, vec4 model_center, vec4 global_center);
 	bool VisibleToLight(LightParams light, mat4 cur_inv_transform, vec4 point);

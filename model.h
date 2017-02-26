@@ -37,6 +37,8 @@ public:
 	vec4 min_vec;
 	vec4 max_vec;
 
+	int texture_mode;
+
 	COLORREF color;
 };
 
