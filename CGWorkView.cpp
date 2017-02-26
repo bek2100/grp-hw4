@@ -61,7 +61,7 @@ extern IPFreeformConvStateStruct CGSkelFFCState;
 
 COLORREF marble_colors[33] = { RGB(255, 248, 220), RGB(255, 235, 205), RGB(255, 228, 196), RGB(218, 165, 32), RGB(255, 222, 173), RGB(245, 222, 179), RGB(222, 184, 135), RGB(210, 180, 140), RGB(222, 184, 135), RGB(222, 184, 135), RGB(218, 165, 32), RGB(205, 133, 63), RGB(210, 105, 30), RGB(139, 69, 19), RGB(160, 82, 45), RGB(165, 42, 42), RGB(128, 0, 0), RGB(165, 42, 42), RGB(160, 82, 45), RGB(139, 69, 19), RGB(210, 105, 30), RGB(205, 133, 63), RGB(218, 165, 32), RGB(222, 184, 135), RGB(245, 222, 179), RGB(210, 180, 140), RGB(222, 184, 135), RGB(245, 222, 179), RGB(255, 222, 173), RGB(255, 228, 196), RGB(255, 235, 205), RGB(255, 248, 220), RGB(222, 184, 135) };
 
-COLORREF wood_colors[9] = { RGB(139, 69, 19), RGB(160, 82, 45), RGB(128, 60, 10), RGB(139, 69, 19), RGB(160, 82, 45), RGB(128, 60, 10), RGB(139, 69, 19), RGB(160, 82, 45), RGB(128, 60, 10) };
+COLORREF wood_colors[9] = { RGB(139, 69, 19), RGB(160, 82, 45), RGB(128, 60, 10), RGB(139, 69, 19), RGB(160, 82, 45), RGB(128, 60, 10), RGB(139, 69, 19), RGB(160, 82, 45), RGB(128, 69, 19)};
 
 /////////////////////////////////////////////////////////////////////////////
 // CCGWorkView
@@ -904,16 +904,18 @@ LRESULT CCGWorkView::OnMouseMovement(WPARAM wparam, LPARAM lparam){
 };
 
 static double Noise(vec4 pos){
-	return sin(sqrt(pow(pos.x, 2) + pow(pos.y, 2) + pow(pos.z, 2)));
+	return sin(pos.x + pos.y + pos.z);
 	//return abs(sin(pos.x));
 }
 
-static double Turbalance(vec4 pos, double pixels){
+static double Turbalance(vec4 pos){
 	double t = 0;
 	double scale = 1;
-	while (scale > pixels){
+	int i = 0;
+	while (i < 4){
 		t += abs(Noise(pos / scale) * scale);
 		scale /= 2;
+		i++;
 	}
 	return t;
 }
@@ -921,8 +923,8 @@ static double Turbalance(vec4 pos, double pixels){
 COLORREF CCGWorkView::MarbleColor(vec4 pos, COLORREF c){
 	int width = m_marble.GetWidth();
 	int height = m_marble.GetHeight();
-	double val_x = abs(sin(pos.x + Turbalance(pos, 0.0312)));
-	double cos_val = abs(cos(sqrt(pow(pos.x,2)+pow(pos.y,2)+pow(pos.z,2))));
+	double val_x = abs(sin(pos.x + Turbalance(pos)));
+	double cos_val = abs(cos(pos.x+pos.y+pos.z));
 	int cur_color = m_marble.GetValue(static_cast<int>(val_x * width), static_cast<int>(cos_val * height));
 	if(m_texture == ID_MARBLE_PICTURE) return RGB(static_cast<int>((GET_B(cur_color) * GetRValue(c)) / 255), static_cast<int>((GET_G(cur_color) *GetGValue(c)) / 255), static_cast<int>((GET_R(cur_color)*GetBValue(c) / 255)));
 	cur_color = marble_colors[static_cast<int>(val_x*33)];
@@ -932,20 +934,11 @@ COLORREF CCGWorkView::MarbleColor(vec4 pos, COLORREF c){
 	int c2r = static_cast<int>(max(min((GetBValue(cur_color)*mesh + GetBValue(color) * (1 - mesh)), 255), 0));
 	int c2g = static_cast<int>(max(min((GetGValue(cur_color)*mesh + GetGValue(color) * (1 - mesh)), 255), 0));
 	int c2b = static_cast<int>(max(min((GetRValue(cur_color)*mesh + GetRValue(color) * (1 - mesh)), 255), 0));
-	//debug
-	if (c2r <= 0 || c2r > 255)
-		bool shit = true;
-	if (c2g <= 0 || c2g > 255)
-		bool shit = true;
-	if (c2b <= 0 || c2b > 255)
-		bool shit = true;
-
-
 	return RGB(static_cast<int>(c2r*GetRValue(c) / 255), static_cast<int>(c2g*GetGValue(c) / 255), static_cast<int>(c2b*GetBValue(c) / 255));
 }
 
 static COLORREF WoodColor(vec4 pos, COLORREF c){
-	double val_x = abs(sin((pow(pos.x,2) + pow(pos.y,2) + Turbalance(pos, 0.12))));
+	double val_x = abs(sin(pow(8*pos.x,2) + pow(8*pos.y,2) + Turbalance(4*pos)));
 	COLORREF cur_color = wood_colors[static_cast<int>(val_x * 9)];
 	return RGB(static_cast<int>((GetBValue(cur_color) * GetRValue(c)) / 255), static_cast<int>((GetGValue(cur_color) *GetGValue(c)) / 255), static_cast<int>((GetRValue(cur_color)*GetBValue(c) / 255)));
 }
@@ -1087,7 +1080,7 @@ static COLORREF LinePointLight(vec4 &p1, vec4 &p2, COLORREF p1_color, COLORREF p
 	return c;
 
 }
-
+/*
 static double NextPoint(vec4 &p1, vec4 p2, double dis, double dx, double dy, double dz, double d){
 	double east_er = 2 * dy;
 	double north_east_er = 2 * (dy - dx);
@@ -1198,7 +1191,7 @@ static double NextPoint(vec4 &p1, vec4 p2, double dis, double dx, double dy, dou
 	}
 	return 0;
 }
-
+*/
 void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr, vec4 &p1, vec4 &p2, COLORREF p1_color, vec4* p1_normal, COLORREF p2_color, vec4* p2_normal, std::unordered_map<int, std::vector<x_z_c_n_point>>* x_y, vec4* origin_1, vec4* origin_2){
 
 	// if the line is beyond the screen space, dont bother drawing it
@@ -1299,16 +1292,6 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 	true_z = LinePointDepth(p1, p2, true_x, true_y);
 	p = LinePointRatio(p1, p2, true_x, true_y);
 
-	//DEBUG
-	//vec4 restored_p1_raw_v1, restored_p1_raw_v2, restored_p1_raw_v3, restored_p1_pure, restored_p2_pure;
-	//vec4 raw_p1 = vec4(p * true_x, p * true_y, p * true_z, p);
-	//restored_p1_raw_v1 = (raw_p1 * inv_cur_transform_object_space);
-	//restored_p1_raw_v2 = p * (vec4(true_x, true_y, true_z, 1) * inv_cur_transform_object_space);
-	//restored_p1_raw_v3 = p * vec4(true_x, true_y, true_z, 1) * inv_cur_transform_object_space;
-
-	//restored_p1_pure = p1 * inv_cur_transform_object_space;
-	//restored_p2_pure = p2 * inv_cur_transform_object_space;
-
 	if (abs(x - static_cast<int>(true_x)) > 1)
 		bool shit = true;
 	if (abs(y - static_cast<int>(true_y)) > 1)
@@ -1357,22 +1340,11 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 
 		while (y < y2){
 			y = y + 1;
-
-
 			true_y = true_y + y_step;
 			true_x = (true_dx / true_dy) * (true_y - true_y1) + true_x1;
 			true_z = LinePointDepth(p1, p2, true_x, true_y);
 			z = LinePointDepth(p1, p2, x, y);
 			p = LinePointRatio(p1, p2, true_x, true_y);
-
-			//DEBUG
-			if (abs(x - static_cast<int>(true_x)) > 1)
-				bool shit = true;
-			if (abs(y - static_cast<int>(true_y)) > 1)
-				bool shit = true;
-			if (abs(z - static_cast<int>(true_z)) > 1)
-				bool shit = true;
-
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
@@ -1432,14 +1404,6 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			z = LinePointDepth(p1, p2, x, y);
 			p = LinePointRatio(p1, p2, true_x, true_y);
 
-			//DEBUG
-			if (abs(x - static_cast<int>(true_x)) > 1)
-				bool shit = true;
-			if (abs(y - static_cast<int>(true_y)) > 1)
-				bool shit = true;
-			if (abs(z - static_cast<int>(true_z)) > 1)
-				bool shit = true;
-
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
@@ -1495,15 +1459,6 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			true_z = LinePointDepth(p1, p2, true_x, true_y);
 			z = LinePointDepth(p1, p2, x, y);
 			p = LinePointRatio(p1, p2, true_x, true_y);
-
-			//DEBUG
-			if (abs(x - static_cast<int>(true_x)) > 1)
-				bool shit = true;
-			if (abs(y - static_cast<int>(true_y)) > 1)
-				bool shit = true;
-			if (abs(z - static_cast<int>(true_z)) > 1)
-				bool shit = true;
-
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
@@ -1559,15 +1514,6 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			true_z = LinePointDepth(p1, p2, true_x, true_y);
 			z = LinePointDepth(p1, p2, x, y);
 			p = LinePointRatio(p1, p2, true_x, true_y);
-
-			//DEBUG
-			if (abs(x - static_cast<int>(true_x)) > 1)
-				bool shit = true;
-			if (abs(y - static_cast<int>(true_y)) > 1)
-				bool shit = true;
-			if (abs(z - static_cast<int>(true_z)) > 1)
-				bool shit = true;
-
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
@@ -1622,15 +1568,6 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			true_z = LinePointDepth(p1, p2, true_x, true_y);
 			z = LinePointDepth(p1, p2, x, y);
 			p = LinePointRatio(p1, p2, true_x, true_y);
-
-			//DEBUG
-			if (abs(x - static_cast<int>(true_x)) > 1)
-				bool shit = true;
-			if (abs(y - static_cast<int>(true_y)) > 1)
-				bool shit = true;
-			if (abs(z - static_cast<int>(true_z)) > 1)
-				bool shit = true;
-
 			if (m_nLightShading == ID_LIGHT_SHADING_PHONg) 
 				n = LinePointNormal(p1, p2, *p1_normal, *p2_normal, x, y);
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
@@ -1757,9 +1694,6 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 			std::sort(iter->second.begin(), iter->second.end());
 			int y = iter->first;
 			if (iter->second.size() > 1){
-				//scan_p1 = vec4(iter->second[0].x, y, iter->second[0].z, 1);
-				//scan_p2 = vec4(iter->second[iter->second.size() - 1].x, y, iter->second[iter->second.size() - 1].z, 1);
-				// z buffer / shadow map calculations
 				true_y = iter->second[0].true_y;
 				true_x = iter->second[0].true_x;
 
@@ -1768,11 +1702,6 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 				x_step = (iter->second[iter->second.size() - 1].true_x - iter->second[0].true_x) / (iter->second[iter->second.size() - 1].x - static_cast<int>(iter->second[0].x));
 				y_step = (iter->second[iter->second.size() - 1].true_y - iter->second[0].true_y) / (iter->second[iter->second.size() - 1].x - static_cast<int>(iter->second[0].x));
 				z_step = (iter->second[iter->second.size() - 1].true_z - iter->second[0].true_z) / (iter->second[iter->second.size() - 1].x - static_cast<int>(iter->second[0].x));
-
-				//scan_p1 = vec4(iter->second[0].x, y, iter->second[0].z, 1);
-				//scan_p2 = vec4(iter->second[iter->second.size() - 1].x, y, iter->second[iter->second.size() - 1].z, 1);
-				//x_step = (iter->second[iter->second.size() - 1].true_x - iter->second[0].true_x) / (static_cast<int>(iter->second[0].x) - iter->second[iter->second.size() - 1].x);
-				//y_step = (iter->second[iter->second.size() - 1].true_y - iter->second[0].true_y) / (static_cast<int>(iter->second[0].x) - iter->second[iter->second.size() - 1].x);
 
 				c1 = iter->second[0].c;
 				c2 = iter->second[iter->second.size() - 1].c;
