@@ -44,6 +44,7 @@ extern IPFreeformConvStateStruct CGSkelFFCState;
 #define STATUS_BAR_TEXT(str) (((CMainFrame*)GetParentFrame())->getStatusBar().SetWindowText(str))
 
 #define IN_RANGE(x, y) ((1 <= x) && (x < (m_WindowWidth - 1)) && (1 <= y) && (y < (m_WindowHeight - 1)))
+#define IN_SHADOWMAP_RANGE(x, y) ((1 <= x) && (x < (m_shadow_size - 1)) && (1 <= y) && (y < (m_shadow_size - 1)))
 #define SCREEN_SPACE(x, y) (x + m_WindowWidth * (y))
 #define SCREEN_SPACE_ALIASING(x, y) (x + (m_WindowWidth / m_nAntiAliasingDim) * (y))
 #define SCREEN_SPACE_SHADOWMAP(x, y) (x + (m_shadow_size) * (y))
@@ -1222,23 +1223,29 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 	x1 = static_cast<int>(min(p1_x, p2_x));
 	x2 = static_cast<int>(max(p1_x, p2_x));
 
+	double true_x1 = min(p1_x, p2_x);
+	double true_x2 = max(p1_x, p2_x);
+
+	double true_y1;
+	double true_y2;
+
 	if (x1 != x2){
 		y1 = static_cast<int>(p1_x < p2_x ? p1_y : p2_y);
 		y2 = static_cast<int>(p1_x < p2_x ? p2_y : p1_y);
+		true_y1 = p1_x < p2_x ? p1_y : p2_y;
+		true_y2 = p1_x < p2_x ? p2_y : p1_y;
 	}
 	else{
 		y1 = static_cast<int>(min(p1_y, p2_y));
 		y2 = static_cast<int>(max(p1_y, p2_y));
+		true_y1 = min(p1_y, p2_y);
+		true_y2 = max(p1_y, p2_y);
 	}
 
 
 	dx = x2 - x1;
 	dy = y2 - y1;
 
-	double true_y1 = p1_x < p2_x ? p1_y : p2_y;
-	double true_y2 = p1_x < p2_x ? p2_y : p1_y;
-	double true_x1 = min(p1_x, p2_x);
-	double true_x2 = max(p1_x, p2_x);
 	double true_dy = true_y2 - true_y1;
 	double true_dx = true_x2 - true_x1;
 
@@ -1286,6 +1293,8 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 	//DEBUG
 	if (abs(x - static_cast<int>(true_x)) > 1)
 		bool shit = true;
+	if (abs(y - static_cast<int>(true_y)) > 1)
+		bool shit = true;
 	if (abs(z - static_cast<int>(true_z)) > 1)
 		bool shit = true;
 
@@ -1295,7 +1304,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 	if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
 		c = LinePointLight(p1, p2, p1_color, p2_color ,x, y);
 	else if (draw)
-		c = ApplyLight(p1_color, n, p * vec4(x, y, z, 1), inv_cur_transform);
+		c = ApplyLight(p1_color, n, p * vec4(true_x, true_y, true_z, 1), inv_cur_transform);
 	else
 		c = p1_color;
 
@@ -1315,15 +1324,14 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 		(*x_y)[y].push_back(xzcn_point);
 	}
 	else if (IN_RANGE(x, y)){
-		if (z < z_arr[SCREEN_SPACE(x, y)]){
+		if (true_z < z_arr[SCREEN_SPACE(x, y)]){
 			if (draw)
 				arr[SCREEN_SPACE(x, y)] = c;
-
-			z_arr[SCREEN_SPACE(x, y)] = z;
+			z_arr[SCREEN_SPACE(x, y)] = true_z;
 			if (m_render_target == ID_RENDER_TOFILE){
 				m_pngHandle.SetValue(x, y, c);
 			}
-		}		
+		}
 	}
 	// select the correct midpoint algorithm (direction and incline)
 	if (dx == 0){ // horizontal y line or line in z direction only
@@ -1342,6 +1350,8 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			//DEBUG
 			if (abs(x - static_cast<int>(true_x)) > 1)
 				bool shit = true;
+			if (abs(y - static_cast<int>(true_y)) > 1)
+				bool shit = true;
 			if (abs(z - static_cast<int>(true_z)) > 1)
 				bool shit = true;
 
@@ -1350,7 +1360,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
 				c = LinePointLight(p1, p2, p1_color, p2_color, x, y);
 			else if (draw)
-				c = ApplyLight(p1_color, n, p * vec4(x, y, z, 1), inv_cur_transform);
+				c = ApplyLight(p1_color, n, p * vec4(true_x, true_y, true_z, 1), inv_cur_transform);
 			else
 				c = p1_color;
 
@@ -1370,11 +1380,10 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				(*x_y)[y].push_back(xzcn_point);
 			}
 			else if (IN_RANGE(x, y)){
-				if (z < z_arr[SCREEN_SPACE(x, y)]){
+				if (true_z < z_arr[SCREEN_SPACE(x, y)]){
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
-
-					z_arr[SCREEN_SPACE(x, y)] = z;
+					z_arr[SCREEN_SPACE(x, y)] = true_z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
 					}
@@ -1408,6 +1417,8 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			//DEBUG
 			if (abs(x - static_cast<int>(true_x)) > 1)
 				bool shit = true;
+			if (abs(y - static_cast<int>(true_y)) > 1)
+				bool shit = true;
 			if (abs(z - static_cast<int>(true_z)) > 1)
 				bool shit = true;
 
@@ -1416,7 +1427,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
 				c = LinePointLight(p1, p2, p1_color, p2_color, x, y);
 			else if (draw)
-				c = ApplyLight(p1_color, n, p * vec4(x, y, z, 1), inv_cur_transform);
+				c = ApplyLight(p1_color, n, p * vec4(true_x, true_y, true_z, 1), inv_cur_transform);
 			else
 				c = p1_color;
 
@@ -1436,10 +1447,10 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				(*x_y)[y].push_back(xzcn_point);
 			}
 			else if (IN_RANGE(x, y)){
-				if (z < z_arr[SCREEN_SPACE(x, y)]){
+				if (true_z < z_arr[SCREEN_SPACE(x, y)]){
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
-					z_arr[SCREEN_SPACE(x, y)] = z;
+					z_arr[SCREEN_SPACE(x, y)] = true_z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
 					}
@@ -1468,6 +1479,8 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			p = LinePointRatio(p1, p2, true_x, true_y);
 
 			//DEBUG
+			if (abs(x - static_cast<int>(true_x)) > 1)
+				bool shit = true;
 			if (abs(y - static_cast<int>(true_y)) > 1)
 				bool shit = true;
 			if (abs(z - static_cast<int>(true_z)) > 1)
@@ -1478,7 +1491,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
 				c = LinePointLight(p1, p2, p1_color, p2_color, x, y);
 			else if (draw)
-				c = ApplyLight(p1_color, n, p * vec4(x, y, z, 1), inv_cur_transform);
+				c = ApplyLight(p1_color, n, p * vec4(true_x, true_y, true_z, 1), inv_cur_transform);
 			else
 				c = p1_color;
 
@@ -1499,10 +1512,10 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				color_debug.push_back(c);
 			}
 			else if (IN_RANGE(x, y)){
-				if (z < z_arr[SCREEN_SPACE(x, y)]){
+				if (true_z < z_arr[SCREEN_SPACE(x, y)]){
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
-					z_arr[SCREEN_SPACE(x, y)] = z;
+					z_arr[SCREEN_SPACE(x, y)] = true_z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
 					}
@@ -1530,6 +1543,8 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			p = LinePointRatio(p1, p2, true_x, true_y);
 
 			//DEBUG
+			if (abs(x - static_cast<int>(true_x)) > 1)
+				bool shit = true;
 			if (abs(y - static_cast<int>(true_y)) > 1)
 				bool shit = true;
 			if (abs(z - static_cast<int>(true_z)) > 1)
@@ -1540,7 +1555,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
 				c = LinePointLight(p1, p2, p1_color, p2_color, x, y);
 			else if (draw)
-				c = ApplyLight(p1_color, n, p * vec4(x, y, z, 1), inv_cur_transform);
+				c = ApplyLight(p1_color, n, p * vec4(true_x, true_y, true_z, 1), inv_cur_transform);
 			else
 				c = p1_color;
 
@@ -1560,10 +1575,10 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				(*x_y)[y].push_back(xzcn_point);
 			}
 			else if (IN_RANGE(x, y)){
-				if (z < z_arr[SCREEN_SPACE(x, y)]){
+				if (true_z < z_arr[SCREEN_SPACE(x, y)]){
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
-					z_arr[SCREEN_SPACE(x, y)] = z;
+					z_arr[SCREEN_SPACE(x, y)] = true_z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
 					}
@@ -1593,6 +1608,8 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			//DEBUG
 			if (abs(x - static_cast<int>(true_x)) > 1)
 				bool shit = true;
+			if (abs(y - static_cast<int>(true_y)) > 1)
+				bool shit = true;
 			if (abs(z - static_cast<int>(true_z)) > 1)
 				bool shit = true;
 
@@ -1601,7 +1618,7 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 			if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD) 
 				c = LinePointLight(p1, p2, p1_color, p2_color, x, y);
 			else if (draw)
-				c = ApplyLight(p1_color, n, p * vec4(x, y, z, 1), inv_cur_transform);
+				c = ApplyLight(p1_color, n, p * vec4(true_x, true_y, true_z, 1), inv_cur_transform);
 			else
 				c = p1_color;
 
@@ -1621,10 +1638,10 @@ void CCGWorkView::DrawLine(mat4 inv_cur_transform, double* z_arr, COLORREF *arr,
 				(*x_y)[y].push_back(xzcn_point);
 			}
 			else if (IN_RANGE(x, y)){
-				if (z < z_arr[SCREEN_SPACE(x, y)]){
+				if (true_z < z_arr[SCREEN_SPACE(x, y)]){
 					if (draw)
 						arr[SCREEN_SPACE(x, y)] = c;
-					z_arr[SCREEN_SPACE(x, y)] = z;
+					z_arr[SCREEN_SPACE(x, y)] = true_z;
 					if (m_render_target == ID_RENDER_TOFILE){
 						m_pngHandle.SetValue(x, y, c);
 					}
@@ -1716,7 +1733,7 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 		double dz;
 		vec4 origin;
 		double err;
-		double x_step, y_step, z, ratio;
+		double z_step, x_step, y_step, z, ratio;
 		double true_y, true_x;
 		for (auto iter = x_y.begin(); iter != x_y.end(); ++iter){
 			std::sort(iter->second.begin(), iter->second.end());
@@ -1727,10 +1744,17 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 				// z buffer / shadow map calculations
 				true_y = iter->second[0].true_y;
 				true_x = iter->second[0].true_x;
-				scan_p1 = vec4(iter->second[0].x, y, iter->second[0].z, 1);
-				scan_p2 = vec4(iter->second[iter->second.size() - 1].x, y, iter->second[iter->second.size() - 1].z, 1);
-				x_step = (iter->second[iter->second.size() - 1].true_x - iter->second[0].true_x) / (static_cast<int>(iter->second[0].x) - iter->second[iter->second.size() - 1].x);
-				y_step = (iter->second[iter->second.size() - 1].true_y - iter->second[0].true_y) / (static_cast<int>(iter->second[0].x) - iter->second[iter->second.size() - 1].x);
+
+				scan_p1 = vec4(iter->second[0].true_x, iter->second[0].true_y, iter->second[0].true_z, 1);
+				scan_p2 = vec4(iter->second[iter->second.size() - 1].true_x, iter->second[iter->second.size() - 1].true_y, iter->second[iter->second.size() - 1].true_z, 1);
+				x_step = (iter->second[iter->second.size() - 1].true_x - iter->second[0].true_x) / (iter->second[iter->second.size() - 1].x - static_cast<int>(iter->second[0].x));
+				y_step = (iter->second[iter->second.size() - 1].true_y - iter->second[0].true_y) / (iter->second[iter->second.size() - 1].x - static_cast<int>(iter->second[0].x));
+				z_step = (iter->second[iter->second.size() - 1].true_z - iter->second[0].true_z) / (iter->second[iter->second.size() - 1].x - static_cast<int>(iter->second[0].x));
+
+				//scan_p1 = vec4(iter->second[0].x, y, iter->second[0].z, 1);
+				//scan_p2 = vec4(iter->second[iter->second.size() - 1].x, y, iter->second[iter->second.size() - 1].z, 1);
+				//x_step = (iter->second[iter->second.size() - 1].true_x - iter->second[0].true_x) / (static_cast<int>(iter->second[0].x) - iter->second[iter->second.size() - 1].x);
+				//y_step = (iter->second[iter->second.size() - 1].true_y - iter->second[0].true_y) / (static_cast<int>(iter->second[0].x) - iter->second[iter->second.size() - 1].x);
 
 				c1 = iter->second[0].c;
 				c2 = iter->second[iter->second.size() - 1].c;
@@ -1745,9 +1769,16 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 				dis_x = iter->second[iter->second.size() - 1].x - iter->second[0].x;
 				err = NULL;
 				for (int x = static_cast<int>(iter->second[0].x); x <= iter->second[iter->second.size() - 1].x; x++){
+					if (abs(x - static_cast<int>(true_x)) > 1)
+						bool shit = true;
+					if (abs(y - static_cast<int>(true_y)) > 1)
+						bool shit = true;
+					//if (abs(z - static_cast<int>(true_z)) > 1)
+					//	bool shit = true;
+
 					if (IN_RANGE(x, y)){
-						z = LinePointDepth(scan_p1, scan_p2, x, y);
-						ratio = LinePointRatio(iter->second[0].p * scan_p1, iter->second[iter->second.size() - 1].p * scan_p2, x, y);
+						z = LinePointDepth(scan_p1, scan_p2, true_x, true_y);
+						ratio = LinePointRatio(iter->second[0].p * scan_p1, iter->second[iter->second.size() - 1].p * scan_p2, true_x, true_y);
 						if (z < z_arr[SCREEN_SPACE(x, y)]){
 							vec4 n = p1_normal;
 
@@ -1757,10 +1788,10 @@ void CCGWorkView::ScanConversion(double *z_arr, COLORREF *arr, polygon &p, mat4 
 								if (m_nLightShading == ID_LIGHT_SHADING_GOURAUD)
 									c = LinePointLight(scan_p1, scan_p2, c1, c2, x, y);
 								else 
-									c = ApplyLight(color, n, ratio * vec4(x, y, z, 1), inv_cur_transfrom);
+									c = ApplyLight(color, n, ratio * vec4(true_x, true_y, z, 1), inv_cur_transfrom);
 
-								if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(ratio * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
-								if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(ratio * vec4(x, y, z, 1) * inv_cur_transform_object_space, c);
+								if (m_texture == ID_MARBLE_PICTURE || m_texture == ID_MARBLE_SCALE) c = MarbleColor(ratio * vec4(true_x, true_y, z, 1) * inv_cur_transform_object_space, c);
+								if (m_texture == ID_TEXTURE_WOOD) c = WoodColor(ratio * vec4(true_x, true_y, z, 1) * inv_cur_transform_object_space, c);
 
 								arr[SCREEN_SPACE(x, y)] = c;
 							}
@@ -1895,7 +1926,7 @@ bool CCGWorkView::VisibleToLight(LightParams light, mat4 cur_inv_transform, vec4
 	int x = static_cast<int>(ligt_coord_pos.x);
 	int y = static_cast<int>(ligt_coord_pos.y);
 	
-	if (IN_RANGE(x, y)){
+	if (IN_SHADOWMAP_RANGE(x, y)){
 		double z = light.z_array_xdir[SCREEN_SPACE_SHADOWMAP(x, y)];
 		if (abs(ligt_coord_pos.z - z) < m_shadow_err)
 			return true;
