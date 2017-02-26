@@ -100,7 +100,7 @@ vec4 operator*(double x, vec4 lhs){
 	res.x = lhs.x * x;
 	res.y = lhs.y * x;
 	res.z = lhs.z * x;
-	res.p = lhs.p;
+	res.p = lhs.p * x;
 	return res;
 };
 
